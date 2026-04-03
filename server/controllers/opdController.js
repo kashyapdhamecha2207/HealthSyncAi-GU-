@@ -24,8 +24,18 @@ exports.registerOPDPatient = async (req, res) => {
       isEmergency
     } = req.body;
 
+    // Get patient and doctor details
+    const [patient, doctor] = await Promise.all([
+      User.findById(patientId),
+      User.findById(doctorId)
+    ]);
+
+    if (!patient || !doctor) {
+      return res.status(404).json({ success: false, message: 'Patient or Doctor not found' });
+    }
+
     // Get next queue number
-    const queueNumber = await OPDQueue.getNextQueueNumber(doctorId, department);
+    const queueNumber = await OPDQueue.getNextQueueNumber(doctorId, department || doctor.department);
     
     // Calculate risk score
     const pastVisits = await OPDVisit.find({ patientId });
@@ -34,13 +44,16 @@ exports.registerOPDPatient = async (req, res) => {
       status: 'no-show' 
     }).countDocuments();
     
-    const { score, classification } = calculateRiskScore(missedAppointments, 90); // Default adherence
+    const { score, classification } = calculateRiskScore(missedAppointments, 90);
     
     // Create OPD Queue entry
     const queueEntry = await OPDQueue.create({
       patientId,
+      patientName: patient.name,
+      patientAge: patient.age,
+      patientGender: patient.gender,
       doctorId,
-      department,
+      department: department || doctor.department,
       queueNumber,
       category: visitType,
       priority: isEmergency ? 'emergency' : 'normal',
@@ -57,24 +70,21 @@ exports.registerOPDPatient = async (req, res) => {
       doctorId,
       appointmentId,
       visitType,
-      department,
+      department: department || doctor.department,
       chiefComplaint,
       symptoms: symptoms || [],
       duration,
       severity,
+      consultationFee: 500, // Fixed fee for now
+      totalAmount: 500,
       isEmergency: isEmergency || false,
-      emergencyLevel: isEmergency ? 'high' : 'low'
+      emergencyLevel: isEmergency ? 'high' : 'low',
+      status: 'registered'
     });
 
     // Update queue entry with visit reference
     queueEntry.opdVisitId = opdVisit._id;
     await queueEntry.save();
-
-    // Get patient and doctor details for response
-    const [patient, doctor] = await Promise.all([
-      User.findById(patientId).select('name email phone'),
-      User.findById(doctorId).select('name department')
-    ]);
 
     res.status(201).json({
       success: true,
@@ -477,7 +487,42 @@ exports.processPayment = async (req, res) => {
     console.error('Process Payment Error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to process payment', 
+    });
+  }
+};
+
+// @desc    Search patients for OPD registration
+// @route   GET /api/opd/patients/search
+// @access  Private (Doctor/Staff)
+exports.searchPatients = async (req, res) => {
+  try {
+    const { query } = req.query;
+    
+    if (!query) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const patients = await User.find({
+      role: 'patient',
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { email: { $regex: query, $options: 'i' } },
+        { phone: { $regex: query, $options: 'i' } }
+      ]
+    })
+    .select('name email phone age gender')
+    .limit(10);
+
+    res.json({
+      success: true,
+      data: patients
+    });
+
+  } catch (error) {
+    console.error('Search Patients Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to search patients', 
       error: error.message 
     });
   }

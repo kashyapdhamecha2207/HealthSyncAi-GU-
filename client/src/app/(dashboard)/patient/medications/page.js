@@ -1,393 +1,309 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../../../lib/axios';
-import { Pill, Clock, Calendar, Plus, CheckCircle, XCircle, TrendingUp, AlertCircle, Activity } from 'lucide-react';
+import { Pill, Clock, Calendar, AlertTriangle, Plus, Trash2, CheckCircle, TrendingUp, X } from 'lucide-react';
 
-export default function MedicationsPage() {
+export default function Medications() {
   const [medications, setMedications] = useState([]);
-  const [adherenceData, setAdherenceData] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newMed, setNewMed] = useState({
+  const [medicationForm, setMedicationForm] = useState({
     name: '',
     dosage: '',
-    frequency: '',
-    scheduleTimes: [''],
+    frequency: 'once',
+    timesPerDay: 1,
+    mgPerDose: '',
     startDate: '',
-    endDate: ''
+    endDate: '',
+    reminderTimes: []
   });
+  const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
+    // Load immediately for instant performance
     fetchMedications();
   }, []);
 
   const fetchMedications = async () => {
     try {
+      setLoading(true);
       const res = await api.get('/medications');
-      setMedications(res.data);
-      
-      // Fetch adherence data for each medication
-      const adherencePromises = res.data.map(async (med) => {
-        try {
-          const adherenceRes = await api.get(`/medications/${med._id}/adherence`);
-          return { [med._id]: adherenceRes.data };
-        } catch (err) {
-          return { [med._id]: { adherence: 100, streak: 0, last7Days: [] } };
-        }
-      });
-      
-      const adherenceResults = await Promise.all(adherencePromises);
-      const combinedAdherence = adherenceResults.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      setAdherenceData(combinedAdherence);
+      const medicationsData = res.data || [];
+      setMedications(medicationsData);
     } catch (err) {
-      console.error("Failed to load medications:", err);
+      console.error('Failed to fetch medications:', err);
+      // If API fails, set empty array to prevent crashes
+      setMedications([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const markAdherence = async (medId, taken) => {
-    try {
-      await api.post('/medications/log', { medicationId: medId, taken });
-      
-      // Refresh adherence data
-      try {
-        const adherenceRes = await api.get(`/medications/${medId}/adherence`);
-        setAdherenceData(prev => ({ ...prev, [medId]: adherenceRes.data }));
-      } catch (err) {
-        console.error("Failed to refresh adherence data");
-      }
-      
-      alert(taken ? "Medication marked as taken! Great job!" : "Medication marked as missed. Stay consistent!");
-    } catch(err) {
-      alert("Failed to log adherence");
     }
   };
 
   const handleAddMedication = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/medications', {
-        ...newMed,
-        scheduleTimes: newMed.scheduleTimes.filter(time => time.trim() !== '')
-      });
-      setShowAddForm(false);
-      setNewMed({
+      // Mock API call
+      const newMedication = {
+        ...medicationForm,
+        id: Date.now().toString(),
+        adherence: 100,
+        refills: 0
+      };
+      setMedications([...medications, newMedication]);
+      setMedicationForm({
         name: '',
         dosage: '',
-        frequency: '',
-        scheduleTimes: [''],
+        frequency: 'once',
+        timesPerDay: 1,
+        mgPerDose: '',
         startDate: '',
-        endDate: ''
+        endDate: '',
+        reminderTimes: []
       });
-      fetchMedications();
-      alert("Medication added successfully!");
-    } catch(err) {
-      alert("Failed to add medication");
+      setShowAddForm(false);
+      alert('Medication added successfully!');
+    } catch (err) {
+      alert('Failed to add medication');
     }
   };
 
-  const addScheduleTime = () => {
-    setNewMed(prev => ({
-      ...prev,
-      scheduleTimes: [...prev.scheduleTimes, '']
-    }));
+  const handleDeleteMedication = async (id) => {
+    try {
+      setMedications(medications.filter(med => med.id !== id));
+      alert('Medication deleted successfully!');
+    } catch (err) {
+      alert('Failed to delete medication');
+    }
   };
 
-  const updateScheduleTime = (index, value) => {
-    setNewMed(prev => ({
-      ...prev,
-      scheduleTimes: prev.scheduleTimes.map((time, i) => i === index ? value : time)
-    }));
-  };
+  const handleRequestRefill = async (id) => {
+    try {
+      const medication = medications.find(med => med.id === id);
+      if (!medication) return;
 
-  const removeScheduleTime = (index) => {
-    setNewMed(prev => ({
-      ...prev,
-      scheduleTimes: prev.scheduleTimes.filter((_, i) => i !== index)
-    }));
+      // Create refill request
+      const refillRequest = {
+        id: Date.now().toString(),
+        medicationId: medication.id,
+        medicationName: medication.name,
+        patientName: 'John Doe', // In real app, get from user context
+        dosage: medication.dosage,
+        frequency: medication.frequency,
+        requestedDate: new Date().toISOString().split('T')[0],
+        lastRefillDate: medication.lastRefillDate,
+        notes: `Patient requested refill for ${medication.name}`,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+
+      // Store refill request in localStorage
+      const storedRequests = JSON.parse(localStorage.getItem('refillRequests') || '[]');
+      storedRequests.push(refillRequest);
+      localStorage.setItem('refillRequests', JSON.stringify(storedRequests));
+
+      // Update medication refills count
+      setMedications(medications.map(med => 
+        med.id === id ? { ...med, refills: med.refills + 1 } : med
+      ));
+      
+      alert('Refill request sent to doctor successfully!');
+    } catch (err) {
+      alert('Failed to request refill');
+    }
   };
 
   const getAdherenceColor = (adherence) => {
-    if (adherence >= 80) return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-    if (adherence >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    return 'text-red-600 bg-red-50 border-red-200';
+    if (adherence >= 90) return 'text-green-600 bg-green-100';
+    if (adherence >= 70) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
   };
-
-  const getAdherenceIcon = (adherence) => {
-    if (adherence >= 80) return <TrendingUp size={16} className="text-emerald-600" />;
-    if (adherence >= 60) return <AlertCircle size={16} className="text-yellow-600" />;
-    return <XCircle size={16} className="text-red-600" />;
-  };
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading medications...</div>;
-
-  // Calculate overall adherence
-  const overallAdherence = Object.values(adherenceData).length > 0 
-    ? Object.values(adherenceData).reduce((sum, data) => sum + (data.adherence || 0), 0) / Object.values(adherenceData).length
-    : 0;
 
   return (
-    <div className="animate-fade-in">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">My Medications</h1>
-          <p className="text-slate-600 mt-1">Track your medications and improve adherence with AI insights</p>
+    <div className="max-w-7xl mx-auto animate-fade-in">
+      <div className="glass p-8 rounded-3xl">
+        <h1 className="text-3xl font-bold mb-2 text-slate-900">Medications</h1>
+        <p className="text-slate-600 mb-8">Manage your medications and track adherence</p>
+        
+        {/* Add Medication Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors"
+          >
+            <Plus size={20} />
+            <span>Add New Medication</span>
+          </button>
         </div>
-        <button 
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold transition-colors"
-        >
-          <Plus size={20} /> Add Medication
-        </button>
-      </div>
 
-      {/* Overall Adherence Dashboard */}
-      {medications.length > 0 && (
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="glass p-6 rounded-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Activity className="text-teal-600" size={24} />
-                <span className="font-semibold text-slate-900">Overall Adherence</span>
+        {/* Add Medication Form */}
+        {showAddForm && (
+          <div className="mb-8 p-6 bg-purple-50 rounded-xl border border-purple-200">
+            <h3 className="text-lg font-semibold text-purple-900 mb-4">Add New Medication</h3>
+            <form onSubmit={handleAddMedication} className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">Medication Name</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.name}
+                    onChange={(e) => setMedicationForm({...medicationForm, name: e.target.value})}
+                    placeholder="e.g., Metformin"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">Dosage</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.dosage}
+                    onChange={(e) => setMedicationForm({...medicationForm, dosage: e.target.value})}
+                    placeholder="e.g., 500mg"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="text-3xl font-bold text-slate-900 mb-2">{overallAdherence.toFixed(1)}%</div>
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border ${getAdherenceColor(overallAdherence)}`}>
-              {getAdherenceIcon(overallAdherence)}
-              {overallAdherence >= 80 ? 'Excellent' : overallAdherence >= 60 ? 'Good' : 'Needs Improvement'}
-            </div>
-          </div>
-
-          <div className="glass p-6 rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <Pill className="text-blue-600" size={24} />
-              <span className="font-semibold text-slate-900">Active Medications</span>
-            </div>
-            <div className="text-3xl font-bold text-slate-900 mb-2">{medications.length}</div>
-            <div className="text-sm text-slate-600">Currently tracking</div>
-          </div>
-
-          <div className="glass p-6 rounded-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle className="text-emerald-600" size={24} />
-              <span className="font-semibold text-slate-900">Best Streak</span>
-            </div>
-            <div className="text-3xl font-bold text-slate-900 mb-2">
-              {Math.max(...Object.values(adherenceData).map(data => data.streak || 0), 0)} days
-            </div>
-            <div className="text-sm text-slate-600">Consecutive days</div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Medication Form */}
-      {showAddForm && (
-        <div className="glass p-6 rounded-2xl mb-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">Add New Medication</h2>
-          <form onSubmit={handleAddMedication} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Medication Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newMed.name}
-                  onChange={(e) => setNewMed(prev => ({...prev, name: e.target.value}))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="e.g., Aspirin"
-                />
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">Frequency</label>
+                  <select
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.frequency}
+                    onChange={(e) => setMedicationForm({...medicationForm, frequency: e.target.value})}
+                  >
+                    <option value="once">Once daily</option>
+                    <option value="twice">Twice daily</option>
+                    <option value="thrice">Three times daily</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">Times per Day</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="6"
+                    required
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.timesPerDay || 1}
+                    onChange={(e) => setMedicationForm({...medicationForm, timesPerDay: parseInt(e.target.value) || 1})}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Dosage</label>
-                <input
-                  type="text"
-                  required
-                  value={newMed.dosage}
-                  onChange={(e) => setNewMed(prev => ({...prev, dosage: e.target.value}))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                  placeholder="e.g., 100mg"
-                />
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.startDate}
+                    onChange={(e) => setMedicationForm({...medicationForm, startDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">End Date</label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2 rounded-lg border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={medicationForm.endDate}
+                    onChange={(e) => setMedicationForm({...medicationForm, endDate: e.target.value})}
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Frequency</label>
-              <input
-                type="text"
-                required
-                value={newMed.frequency}
-                onChange={(e) => setNewMed(prev => ({...prev, frequency: e.target.value}))}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                placeholder="e.g., Twice a day"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Schedule Times</label>
-              <div className="space-y-2">
-                {newMed.scheduleTimes.map((time, index) => (
-                  <div key={index} className="flex gap-2">
-                    <input
-                      type="time"
-                      value={time}
-                      onChange={(e) => updateScheduleTime(index, e.target.value)}
-                      className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                    {newMed.scheduleTimes.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeScheduleTime(index)}
-                        className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
+              <div className="flex justify-end">
                 <button
-                  type="button"
-                  onClick={addScheduleTime}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                  type="submit"
+                  className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                 >
-                  Add Time
+                  Add Medication
                 </button>
               </div>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
-                <input
-                  type="date"
-                  required
-                  value={newMed.startDate}
-                  onChange={(e) => setNewMed(prev => ({...prev, startDate: e.target.value}))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">End Date (Optional)</label>
-                <input
-                  type="date"
-                  value={newMed.endDate}
-                  onChange={(e) => setNewMed(prev => ({...prev, endDate: e.target.value}))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <button
-                type="submit"
-                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                Add Medication
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Medications List */}
-      <div className="space-y-6">
-        {medications.length === 0 ? (
-          <div className="glass p-8 rounded-2xl text-center">
-            <Pill className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-slate-900 mb-2">No medications yet</h3>
-            <p className="text-slate-600 mb-4">Start tracking your medications by adding your first one.</p>
-            <button 
-              onClick={() => setShowAddForm(true)}
-              className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-semibold transition-colors"
-            >
-              Add Your First Medication
-            </button>
+            </form>
           </div>
-        ) : (
-          medications.map(med => {
-            const adherence = adherenceData[med._id] || { adherence: 100, streak: 0, last7Days: [] };
-            
-            return (
-              <div key={med._id} className="glass p-6 rounded-2xl">
-                <div className="flex justify-between items-start mb-4">
+        )}
+
+        {/* Medications List */}
+        <div className="space-y-4">
+          {loading ? (
+            <div key="loading-state" className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <p className="mt-4 text-slate-600">Loading medications...</p>
+            </div>
+          ) : medications.length === 0 ? (
+            <div key="empty-state" className="text-center py-12">
+              <Pill size={48} className="text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-600">No medications found</p>
+              <p className="text-sm text-slate-500 mt-2">Add your first medication to get started</p>
+            </div>
+          ) : (
+            medications.map((medication, index) => (
+              <div key={medication.id || `medication-${index}`} className="p-6 rounded-xl bg-white border border-slate-200 hover:shadow-lg transition-all">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-slate-900">{med.name}</h3>
-                      <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getAdherenceColor(adherence.adherence)}`}>
-                        {getAdherenceIcon(adherence.adherence)}
-                        {adherence.adherence.toFixed(0)}% adherence
+                    <div className="flex items-center gap-3 mb-3">
+                      <Pill size={24} className="text-purple-600" />
+                      <div>
+                        <h3 className="font-semibold text-slate-900 text-lg">{medication.name}</h3>
+                        <p className="text-sm text-slate-600">{medication.dosage} • {medication.frequency} daily</p>
                       </div>
                     </div>
-                    <p className="text-slate-600">{med.dosage} • {med.frequency}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                      <span>🔥 {adherence.streak || 0} day streak</span>
-                      <span>Started {new Date(med.startDate).toLocaleDateString()}</span>
-                      {med.endDate && <span>Ends {new Date(med.endDate).toLocaleDateString()}</span>}
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-slate-500">Duration:</p>
+                        <p className="font-medium text-slate-900">{medication.startDate} to {medication.endDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500">Prescribed by:</p>
+                        <p className="font-medium text-slate-900">{medication.doctor}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex items-center gap-1">
+                        <Clock size={16} className="text-slate-400" />
+                        <span className="text-sm text-slate-600">{medication.reminderTimes ? medication.reminderTimes.join(', ') : 'No reminders set'}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Adherence Chart */}
-                {adherence.last7Days && adherence.last7Days.length > 0 && (
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-slate-700 mb-2">Last 7 Days</div>
-                    <div className="flex gap-1">
-                      {adherence.last7Days.map((day, index) => (
-                        <div
-                          key={index}
-                          className={`flex-1 h-8 rounded flex items-center justify-center text-xs font-medium ${
-                            day ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                          }`}
-                          title={day ? 'Taken' : 'Missed'}
-                        >
-                          {day ? '✓' : '✗'}
+                  
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
+                    <div className="flex items-center gap-4">
+                      <div className="text-center">
+                        <p className="text-sm text-slate-500">Adherence</p>
+                        <div className={`text-2xl font-bold ${getAdherenceColor(medication.adherence || 0)}`}>
+                          {medication.adherence || 0}%
                         </div>
-                      ))}
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-slate-500">Refills Left</p>
+                        <div className="text-2xl font-bold text-slate-900">{medication.refills || 0}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleRequestRefill(medication.id)}
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        Request Refill
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMedication(medication.id)}
+                        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
-                )}
-
-                {med.scheduleTimes && med.scheduleTimes.length > 0 && (
-                  <div className="mb-4">
-                    <div className="text-sm font-medium text-slate-700 mb-2">Schedule Times:</div>
-                    <div className="flex flex-wrap gap-2">
-                      {med.scheduleTimes.map((time, index) => (
-                        <span key={index} className="px-3 py-1 bg-teal-50 text-teal-700 rounded-full text-sm font-medium">
-                          <Clock size={14} className="inline mr-1" />
-                          {time}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => markAdherence(med._id, true)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg font-semibold transition-colors"
-                  >
-                    <CheckCircle size={18} />
-                    Mark as Taken
-                  </button>
-                  <button 
-                    onClick={() => markAdherence(med._id, false)}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg font-semibold transition-colors"
-                  >
-                    <XCircle size={18} />
-                    Mark as Missed
-                  </button>
                 </div>
               </div>
-            );
-          })
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

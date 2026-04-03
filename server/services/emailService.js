@@ -117,17 +117,23 @@ const emailTemplates = {
   }),
 
   // Appointment booked
-  appointmentBooked: (appointment, patient, doctor) => ({
-    subject: 'HealthSync AI+ - Appointment Booking Confirmed',
+  appointmentBooked: (appointment, patient, doctor, role = 'patient') => ({
+    subject: role === 'doctor' 
+      ? `HealthSync AI+ - New Appointment: ${patient.name}` 
+      : 'HealthSync AI+ - Appointment Booking Confirmed',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
         <div style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="margin: 0; font-size: 28px;">📅 Appointment Confirmed</h1>
+          <h1 style="margin: 0; font-size: 28px;">📅 ${role === 'doctor' ? 'New Appointment' : 'Appointment Confirmed'}</h1>
           <p style="margin: 10px 0 0 0; opacity: 0.9;">HealthSync AI+ Booking System</p>
         </div>
         <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           <h2 style="color: #333; margin-bottom: 20px;">Appointment Details</h2>
-          <p style="color: #666; line-height: 1.6;">Your appointment has been successfully booked and confirmed.</p>
+          <p style="color: #666; line-height: 1.6;">
+            ${role === 'doctor' 
+              ? `A new appointment has been scheduled with you by <strong>${patient.name}</strong>.` 
+              : `Your appointment with <strong>Dr. ${doctor.name}</strong> has been successfully booked and confirmed.`}
+          </p>
           
           <div style="background: #f8f9fa; padding: 20px; border-left: 4px solid #007bff; margin: 20px 0;">
             <h3 style="color: #333; margin-top: 0;">Appointment Information:</h3>
@@ -143,13 +149,15 @@ const emailTemplates = {
           
           <div style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <p style="color: #0c5460; margin: 0;">
-              <strong>💡 Reminder:</strong> Please arrive 15 minutes early for your appointment. Bring any relevant medical records.
+              <strong>💡 Tip:</strong> ${role === 'doctor' 
+                ? 'Check the patient history and risk assessment in your dashboard before the appointment.' 
+                : 'Please arrive 15 minutes early for your appointment. Bring any relevant medical records.'}
             </p>
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="http://localhost:3000/patient/appointments" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
-              View All Appointments
+            <a href="http://localhost:3000/${role}" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              Access Your Dashboard
             </a>
           </div>
           

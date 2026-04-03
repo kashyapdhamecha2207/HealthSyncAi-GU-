@@ -17,6 +17,7 @@ router.use(auth);
 
 // Patient Registration and Queue Management
 router.post('/register', registerOPDPatient);
+router.get('/patients/search', searchPatients);
 router.get('/queue/:doctorId', getOPDQueue);
 router.patch('/queue/:queueId/status', updateQueueStatus);
 

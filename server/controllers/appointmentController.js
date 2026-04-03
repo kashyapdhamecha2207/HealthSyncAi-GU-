@@ -63,14 +63,14 @@ exports.createAppointment = async (req, res) => {
 
     if (patient && doctor) {
       // Send to patient
-      const patientEmailTemplate = emailTemplates.appointmentBooked(appointment, patient, doctor);
+      const patientEmailTemplate = emailTemplates.appointmentBooked(appointment, patient, doctor, 'patient');
       await sendEmail({
         to: patient.email,
         ...patientEmailTemplate
       });
 
       // Send to doctor
-      const doctorEmailTemplate = emailTemplates.appointmentBooked(appointment, patient, doctor);
+      const doctorEmailTemplate = emailTemplates.appointmentBooked(appointment, patient, doctor, 'doctor');
       await sendEmail({
         to: doctor.email,
         ...doctorEmailTemplate

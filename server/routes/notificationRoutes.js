@@ -9,6 +9,8 @@ router.route('/')
   .get(getNotifications)
   .post(sendNotification);
 
+router.post('/send', sendNotification);
+
 router.post('/appointment-reminder', sendAppointmentReminder);
 router.post('/medication-reminder', sendMedicationReminder);
 

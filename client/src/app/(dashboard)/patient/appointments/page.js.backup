@@ -1,0 +1,955 @@
+'use client';
+import { useState, useEffect } from 'react';
+import api from '../../../../lib/axios';
+import { useRouter } from 'next/navigation';
+import { Calendar, Clock, User, AlertTriangle, CheckCircle, TrendingUp, Pill, Bell, Activity, RefreshCw, FileText, BarChart3, Heart, Settings } from 'lucide-react';
+
+export default function BookAppointment() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('overview');
+  const [formData, setFormData] = useState({ date: '', time: '', doctorId: '' });
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  
+  // Appointments state
+  const [appointments, setAppointments] = useState([]);
+  const [appointmentStats, setAppointmentStats] = useState({
+    total: 0,
+    attended: 0,
+    upcoming: 0,
+    missed: 0,
+    rescheduled: 0
+  });
+  
+  // Medications state
+  const [medications, setMedications] = useState([]);
+  const [medicationForm, setMedicationForm] = useState({
+    name: '',
+    dosage: '',
+    frequency: 'once',
+    timesPerDay: 1,
+    mgPerDose: '',
+    startDate: '',
+    endDate: '',
+    reminderTimes: []
+  });
+  
+  // Reminders state
+  const [reminders, setReminders] = useState([]);
+  const [reminderForm, setReminderForm] = useState({
+    type: 'appointment',
+    title: '',
+    message: '',
+    time: '',
+    frequency: 'once'
+  });
+  
+  // Health timeline state
+  const [healthTimeline, setHealthTimeline] = useState([]);
+  
+  // AI Risk Score state
+  const [aiRiskScore, setAiRiskScore] = useState({
+    score: 0,
+    level: 'LOW',
+    factors: [],
+    recommendations: []
+  });
+
+  useEffect(() => {
+    fetchDoctors();
+    fetchAppointments();
+    fetchMedications();
+    fetchReminders();
+    fetchHealthTimeline();
+    calculateAIRiskScore();
+  }, []);
+
+  const fetchAppointments = async () => {
+    try {
+      const res = await api.get('/appointments');
+      setAppointments(res.data || []);
+      
+      // Calculate statistics
+      const stats = res.data.reduce((acc, apt) => {
+        acc.total++;
+        if (apt.status === 'completed') acc.attended++;
+        else if (apt.status === 'scheduled') acc.upcoming++;
+        else if (apt.status === 'no-show') acc.missed++;
+        else if (apt.status === 'rescheduled') acc.rescheduled++;
+        return acc;
+      }, { total: 0, attended: 0, upcoming: 0, missed: 0, rescheduled: 0 });
+      
+      setAppointmentStats(stats);
+    } catch (err) {
+      console.error('Failed to fetch appointments:', err);
+    }
+  };
+
+  const fetchMedications = async () => {
+    try {
+      const res = await api.get('/medications');
+      setMedications(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch medications:', err);
+    }
+  };
+
+  const fetchReminders = async () => {
+    try {
+      const res = await api.get('/notifications');
+      setReminders(res.data.filter(n => n.type === 'reminder') || []);
+    } catch (err) {
+      console.error('Failed to fetch reminders:', err);
+    }
+  };
+
+  const fetchHealthTimeline = async () => {
+    try {
+      // Mock timeline data for now
+      const mockTimeline = [
+        {
+          date: '2026-03-15',
+          type: 'appointment',
+          title: 'Initial Consultation',
+          description: 'First appointment with Dr. Sarah Johnson',
+          status: 'completed'
+        },
+        {
+          date: '2026-03-20',
+          type: 'medication',
+          title: 'Prescribed Metformin',
+          description: 'Started diabetes medication',
+          status: 'active'
+        },
+        {
+          date: '2026-04-01',
+          type: 'appointment',
+          title: 'Follow-up Visit',
+          description: 'Regular checkup with Dr. Michael Chen',
+          status: 'scheduled'
+        }
+      ];
+      setHealthTimeline(mockTimeline);
+    } catch (err) {
+      console.error('Failed to fetch health timeline:', err);
+    }
+  };
+
+  const calculateAIRiskScore = () => {
+    // Mock AI risk calculation
+    const missedRate = appointmentStats.total > 0 ? (appointmentStats.missed / appointmentStats.total) * 100 : 0;
+    const adherenceRate = medications.length > 0 ? 85 : 100; // Mock adherence
+    
+    let score = 0;
+    let level = 'LOW';
+    let factors = [];
+    let recommendations = [];
+    
+    if (missedRate > 30) {
+      score += 40;
+      factors.push('High appointment no-show rate');
+      recommendations.push('Set up appointment reminders');
+    }
+    
+    if (adherenceRate < 70) {
+      score += 30;
+      factors.push('Low medication adherence');
+      recommendations.push('Use medication reminders');
+    }
+    
+    if (medications.length > 3) {
+      score += 20;
+      factors.push('Complex medication regimen');
+      recommendations.push('Review medications with doctor');
+    }
+    
+    if (score > 70) level = 'HIGH';
+    else if (score > 40) level = 'MEDIUM';
+    
+    setAiRiskScore({ score, level, factors, recommendations });
+  };
+
+  const handleReschedule = async (appointmentId, newDate, newTime) => {
+    try {
+      await api.put(`/appointments/${appointmentId}`, { date: newDate, time: newTime });
+      fetchAppointments();
+      alert('Appointment rescheduled successfully!');
+    } catch (err) {
+      alert('Failed to reschedule appointment');
+    }
+  };
+
+  const handleAddMedication = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/medications', medicationForm);
+      fetchMedications();
+      calculateAIRiskScore();
+      setMedicationForm({
+        name: '',
+        dosage: '',
+        frequency: 'once',
+        timesPerDay: 1,
+        mgPerDose: '',
+        startDate: '',
+        endDate: '',
+        reminderTimes: []
+      });
+      alert('Medication added successfully!');
+    } catch (err) {
+      alert('Failed to add medication');
+    }
+  };
+
+  const handleAddReminder = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/notifications', reminderForm);
+      fetchReminders();
+      setReminderForm({
+        type: 'appointment',
+        title: '',
+        message: '',
+        time: '',
+        frequency: 'once'
+      });
+      alert('Reminder added successfully!');
+    } catch (err) {
+      alert('Failed to add reminder');
+    }
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      const res = await api.get('/doctors/all');
+      const doctorsData = res.data.data || [];
+      
+      // If no doctors from API, use mock data for demonstration
+      if (doctorsData.length === 0) {
+        const mockDoctors = [
+          {
+            _id: '1',
+            name: 'Dr. Sarah Johnson',
+            email: 'sarah.johnson@healthsync.com',
+            department: 'Cardiology',
+            speciality: 'Cardiology',
+            rating: 4.8
+          },
+          {
+            _id: '2', 
+            name: 'Dr. Michael Chen',
+            email: 'michael.chen@healthsync.com',
+            department: 'General Medicine',
+            speciality: 'General Medicine',
+            rating: 4.9
+          },
+          {
+            _id: '3',
+            name: 'Dr. Emily Davis',
+            email: 'emily.davis@healthsync.com', 
+            department: 'Pediatrics',
+            speciality: 'Pediatrics',
+            rating: 4.7
+          }
+        ];
+        setDoctors(mockDoctors);
+      } else {
+        setDoctors(doctorsData);
+      }
+    } catch (err) {
+      console.error('Failed to fetch doctors:', err);
+      // Use mock data as fallback
+      const mockDoctors = [
+        {
+          _id: '1',
+          name: 'Dr. Sarah Johnson',
+          email: 'sarah.johnson@healthsync.com',
+          department: 'Cardiology',
+          speciality: 'Cardiology',
+          rating: 4.8
+        }
+      ];
+      setDoctors(mockDoctors);
+    }
+  };
+
+  const handleDoctorSelect = (doctorId) => {
+    const doctor = doctors.find(d => d._id === doctorId);
+    setSelectedDoctor(doctor);
+    setFormData({ ...formData, doctorId });
+    
+    // Generate available slots for selected date
+    if (formData.date) {
+      generateAvailableSlots(formData.date);
+    }
+  };
+
+  const generateAvailableSlots = (date) => {
+    const slots = [];
+    const startHour = 9;
+    const endHour = 17;
+    
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        slots.push(time);
+      }
+    }
+    
+    setAvailableSlots(slots);
+  };
+
+  const handleDateChange = (date) => {
+    setFormData({ ...formData, date });
+    if (selectedDoctor) {
+      generateAvailableSlots(date);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const response = await api.post('/appointments', formData);
+      const appointment = response.data;
+      
+      // Show AI risk assessment
+      let riskMessage = "Appointment booked successfully!";
+      if (appointment.riskLevel === 'HIGH') {
+        riskMessage += " ⚠️ High no-show risk detected. We'll send extra reminders.";
+      } else if (appointment.riskLevel === 'MEDIUM') {
+        riskMessage += " ℹ️ Moderate no-show risk. Standard reminders will be sent.";
+      } else {
+        riskMessage += " ✅ Low no-show risk. See you soon!";
+      }
+      
+      alert(riskMessage);
+      router.push('/patient');
+    } catch (err) {
+      alert("Failed to book appointment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto animate-fade-in">
+      <div className="glass p-8 rounded-3xl">
+        <h1 className="text-3xl font-bold mb-2 text-slate-900">Health Management Dashboard</h1>
+        <p className="text-slate-600 mb-8">Complete overview of your appointments, medications, and health journey</p>
+        
+        {/* Health Options Grid */}
+        <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            {
+              id: 'booking',
+              title: 'Book Appointment',
+              icon: Calendar,
+              color: 'teal',
+              tasks: ['Select doctor', 'Choose date', 'Pick time', 'Risk assessment', 'Confirm booking']
+            },
+            {
+              id: 'medical',
+              title: 'Medical Records',
+              icon: FileText,
+              color: 'blue',
+              tasks: ['View history', 'Upload results', 'Update prescriptions', 'Download reports', 'Share with doctors']
+            },
+            {
+              id: 'medications',
+              title: 'Medications',
+              icon: Pill,
+              color: 'purple',
+              tasks: ['Add medication', 'Set dosage', 'Track adherence', 'Request refills', 'Check interactions']
+            },
+            {
+              id: 'reminders',
+              title: 'Reminders',
+              icon: Bell,
+              color: 'orange',
+              tasks: ['Appointment alerts', 'Medication reminders', 'Hydration notifications', 'Exercise prompts', 'Health check-ins']
+            },
+            {
+              id: 'health',
+              title: 'Health Tracking',
+              icon: Heart,
+              color: 'red',
+              tasks: ['Log vital signs', 'Track symptoms', 'Monitor weight', 'Record mood', 'View trends']
+            },
+            {
+              id: 'emergency',
+              title: 'Emergency',
+              icon: AlertTriangle,
+              color: 'red',
+              tasks: ['Emergency contacts', 'Ambulance call', 'Location sharing', 'Medical alert', 'Emergency protocols']
+            },
+            {
+              id: 'settings',
+              title: 'Settings',
+              icon: Settings,
+              color: 'gray',
+              tasks: ['Profile management', 'Notifications', 'Privacy settings', 'Insurance info', 'Account security']
+            }
+          ].map(option => (
+            <div
+              key={option.id}
+              className={
+                'p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-lg ' +
+                (activeTab === option.id
+                  ? option.color === 'teal' ? 'border-teal-500 bg-teal-50' :
+                    option.color === 'blue' ? 'border-blue-500 bg-blue-50' :
+                    option.color === 'purple' ? 'border-purple-500 bg-purple-50' :
+                    option.color === 'orange' ? 'border-orange-500 bg-orange-50' :
+                    option.color === 'red' ? 'border-red-500 bg-red-50' :
+                    'border-gray-500 bg-gray-50'
+                  : 'border-slate-200 hover:border-slate-300 bg-white')
+              }
+              onClick={() => setActiveTab(option.id)}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <option.icon className={
+                  option.color === 'teal' ? 'text-teal-600' :
+                  option.color === 'blue' ? 'text-blue-600' :
+                  option.color === 'purple' ? 'text-purple-600' :
+                  option.color === 'orange' ? 'text-orange-600' :
+                  option.color === 'red' ? 'text-red-600' :
+                  'text-gray-600'
+                } size={24} />
+                <h3 className="font-semibold text-slate-900">{option.title}</h3>
+              </div>
+              <div className="space-y-1">
+                {option.tasks.slice(0, 3).map((task, index) => (
+                  <div key={index} className="text-xs text-slate-600 flex items-center gap-1">
+                    <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                    {task}
+                  </div>
+                ))}
+                {option.tasks.length > 3 && (
+                  <div className="text-xs text-slate-500">+{option.tasks.length - 3} more</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex space-x-1 mb-8 bg-slate-100 p-1 rounded-xl">
+          {['overview', 'appointments', 'medications', 'reminders', 'timeline'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={
+                'flex-1 px-4 py-2 rounded-lg font-medium transition-all ' +
+                (activeTab === tab 
+                  ? 'bg-white text-slate-900 shadow-sm' 
+                  : 'text-slate-600 hover:text-slate-900')
+              }
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* AI Risk Score */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="p-6 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="text-purple-600" size={24} />
+                    <h3 className="font-semibold text-purple-900">AI Risk Score</h3>
+                  </div>
+                  <span className={
+                    'px-3 py-1 rounded-full text-xs font-bold ' +
+                    (aiRiskScore.level === 'HIGH' ? 'bg-red-100 text-red-700' :
+                     aiRiskScore.level === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                     'bg-green-100 text-green-700')
+                  }>
+                    {aiRiskScore.level}
+                  </span>
+                </div>
+                <div className="text-3xl font-bold text-purple-900 mb-2">{aiRiskScore.score}%</div>
+                <div className="space-y-2">
+                  {aiRiskScore.factors.map((factor, i) => (
+                    <div key={i} className="text-sm text-purple-700">• {factor}</div>
+                  ))}
+                </div>
+                {aiRiskScore.recommendations.length > 0 && (
+                  <div className="mt-4 p-3 bg-white rounded-lg">
+                    <div className="text-sm font-semibold text-purple-900 mb-1">Recommendations:</div>
+                    {aiRiskScore.recommendations.map((rec, i) => (
+                      <div key={i} className="text-sm text-purple-700">✓ {rec}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Appointment Statistics */}
+              <div className="p-6 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <Calendar className="text-blue-600" size={24} />
+                  <h3 className="font-semibold text-blue-900">Appointment Statistics</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-900">{appointmentStats.total}</div>
+                    <div className="text-sm text-blue-700">Total</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{appointmentStats.attended}</div>
+                    <div className="text-sm text-blue-700">Attended</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{appointmentStats.upcoming}</div>
+                    <div className="text-sm text-blue-700">Upcoming</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{appointmentStats.missed}</div>
+                    <div className="text-sm text-blue-700">Missed</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <button
+                onClick={() => setActiveTab('appointments')}
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-teal-500 transition-all text-left"
+              >
+                <Calendar className="text-teal-600 mb-2" size={20} />
+                <div className="font-semibold text-slate-900">Book Appointment</div>
+                <div className="text-sm text-slate-600">Schedule a new appointment</div>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('medications')}
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-purple-500 transition-all text-left"
+              >
+                <Pill className="text-purple-600 mb-2" size={20} />
+                <div className="font-semibold text-slate-900">Add Medication</div>
+                <div className="text-sm text-slate-600">Manage your medications</div>
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('reminders')}
+                className="p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-500 transition-all text-left"
+              >
+                <Bell className="text-blue-600 mb-2" size={20} />
+                <div className="font-semibold text-slate-900">Set Reminder</div>
+                <div className="text-sm text-slate-600">Create custom reminders</div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Appointments Tab */}
+        {activeTab === 'appointments' && (
+          <div className="space-y-6">
+            {/* Book New Appointment */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Book New Appointment</h3>
+              
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Doctor Selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                    <User size={18} /> Select Doctor
+                  </label>
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {doctors.map(doctor => (
+                      <div
+                        key={doctor._id}
+                        onClick={() => handleDoctorSelect(doctor._id)}
+                        className={
+                          'p-4 rounded-xl border-2 cursor-pointer transition-all ' +
+                          (formData.doctorId === doctor._id
+                            ? 'border-teal-500 bg-teal-50'
+                            : 'border-slate-200 hover:border-slate-300 bg-white')
+                        }
+                      >
+                        <div className="font-semibold text-slate-900">{doctor.name}</div>
+                        <div className="text-sm text-slate-600">{doctor.specialty}</div>
+                        <div className="text-sm text-teal-600 mt-1">⭐ {doctor.rating}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date and Time Selection */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      <Calendar size={18} /> Preferred Date
+                    </label>
+                    <input 
+                      type="date" 
+                      required
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                      value={formData.date}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      <Clock size={18} /> Preferred Time
+                    </label>
+                    <input 
+                      type="time" 
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                      value={formData.time}
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={loading || !formData.doctorId || !formData.date || !formData.time}
+                  className="w-full py-4 bg-slate-900 text-white rounded-xl shadow-lg hover:bg-slate-800 transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Booking...' : 'Confirm Appointment'}
+                </button>
+              </form>
+            </div>
+
+            {/* Existing Appointments */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Your Appointments</h3>
+              
+              <div className="space-y-4">
+                {appointments.map(apt => (
+                  <div key={apt._id} className="p-4 rounded-xl border border-slate-200 bg-slate-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-900">{apt.doctorId?.name || 'Doctor'}</div>
+                        <div className="text-sm text-slate-600 mt-1">
+                          {new Date(apt.date).toLocaleDateString()} at {apt.time}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={
+                            'px-2 py-1 rounded-full text-xs font-medium ' +
+                            (apt.status === 'completed' ? 'bg-green-100 text-green-700' :
+                             apt.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                             apt.status === 'no-show' ? 'bg-red-100 text-red-700' :
+                             'bg-yellow-100 text-yellow-700')
+                          }>
+                            {apt.status}
+                          </span>
+                          {apt.riskLevel && (
+                            <span className={
+                              'px-2 py-1 rounded-full text-xs font-medium ' +
+                              (apt.riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' :
+                               apt.riskLevel === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                               'bg-green-100 text-green-700')
+                            }>
+                              Risk: {apt.riskLevel}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {apt.status === 'scheduled' && (
+                        <button
+                          onClick={() => {
+                            const newDate = prompt('New date (YYYY-MM-DD):', apt.date);
+                            const newTime = prompt('New time (HH:MM):', apt.time);
+                            if (newDate && newTime) {
+                              handleReschedule(apt._id, newDate, newTime);
+                            }
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          <RefreshCw size={16} />
+                          Reschedule
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Medications Tab */}
+        {activeTab === 'medications' && (
+          <div className="space-y-6">
+            {/* Add Medication */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Add Medication</h3>
+              
+              <form onSubmit={handleAddMedication} className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Medication Name</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.name}
+                      onChange={(e) => setMedicationForm({...medicationForm, name: e.target.value})}
+                      placeholder="e.g., Metformin"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Dosage (mg)</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.mgPerDose}
+                      onChange={(e) => setMedicationForm({...medicationForm, mgPerDose: e.target.value})}
+                      placeholder="e.g., 500mg"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Frequency</label>
+                    <select
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.frequency}
+                      onChange={(e) => setMedicationForm({...medicationForm, frequency: e.target.value})}
+                    >
+                      <option value="once">Once daily</option>
+                      <option value="twice">Twice daily</option>
+                      <option value="thrice">Three times daily</option>
+                      <option value="as_needed">As needed</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Times per day</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="6"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.timesPerDay}
+                      onChange={(e) => setMedicationForm({...medicationForm, timesPerDay: parseInt(e.target.value)})}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Start Date</label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.startDate}
+                      onChange={(e) => setMedicationForm({...medicationForm, startDate: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                      value={medicationForm.endDate}
+                      onChange={(e) => setMedicationForm({...medicationForm, endDate: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors font-bold"
+                >
+                  Add Medication
+                </button>
+              </form>
+            </div>
+
+            {/* Current Medications */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Current Medications</h3>
+              
+              <div className="space-y-4">
+                {medications.map(med => (
+                  <div key={med._id} className="p-4 rounded-xl border border-slate-200 bg-purple-50">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-semibold text-slate-900">{med.name}</div>
+                        <div className="text-sm text-slate-600 mt-1">
+                          {med.dosage} - {med.frequency} ({med.timesPerDay}x daily)
+                        </div>
+                        <div className="text-sm text-purple-600 mt-1">
+                          {new Date(med.startDate).toLocaleDateString()} - {med.endDate ? new Date(med.endDate).toLocaleDateString() : 'Ongoing'}
+                        </div>
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-sm text-purple-700 font-medium">Adherence</div>
+                        <div className="text-2xl font-bold text-purple-900">85%</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reminders Tab */}
+        {activeTab === 'reminders' && (
+          <div className="space-y-6">
+            {/* Add Reminder */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Add Custom Reminder</h3>
+              
+              <form onSubmit={handleAddReminder} className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Reminder Type</label>
+                    <select
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={reminderForm.type}
+                      onChange={(e) => setReminderForm({...reminderForm, type: e.target.value})}
+                    >
+                      <option value="appointment">Appointment</option>
+                      <option value="medication">Medication</option>
+                      <option value="hydration">Hydration Check</option>
+                      <option value="exercise">Exercise</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Title</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={reminderForm.title}
+                      onChange={(e) => setReminderForm({...reminderForm, title: e.target.value})}
+                      placeholder="e.g., Take afternoon medication"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Time</label>
+                    <input
+                      type="time"
+                      required
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={reminderForm.time}
+                      onChange={(e) => setReminderForm({...reminderForm, time: e.target.value})}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Frequency</label>
+                    <select
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      value={reminderForm.frequency}
+                      onChange={(e) => setReminderForm({...reminderForm, frequency: e.target.value})}
+                    >
+                      <option value="once">Once</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Message</label>
+                  <textarea
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    rows={3}
+                    value={reminderForm.message}
+                    onChange={(e) => setReminderForm({...reminderForm, message: e.target.value})}
+                    placeholder="Add any additional notes..."
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-colors font-bold"
+                >
+                  Add Reminder
+                </button>
+              </form>
+            </div>
+
+            {/* Active Reminders */}
+            <div className="p-6 rounded-xl bg-white border border-slate-200">
+              <h3 className="text-xl font-semibold text-slate-900 mb-6">Active Reminders</h3>
+              
+              <div className="space-y-4">
+                {reminders.map(reminder => (
+                  <div key={reminder._id} className="p-4 rounded-xl border border-slate-200 bg-blue-50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <Bell className="text-blue-600 mt-1" size={20} />
+                        <div>
+                          <div className="font-semibold text-slate-900">{reminder.message}</div>
+                          <div className="text-sm text-slate-600 mt-1">
+                            {reminder.time} - {reminder.frequency}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                        {reminder.type}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Health Timeline Tab */}
+        {activeTab === 'timeline' && (
+          <div className="p-6 rounded-xl bg-white border border-slate-200">
+            <h3 className="text-xl font-semibold text-slate-900 mb-6">Health Journey Timeline</h3>
+            
+            <div className="space-y-6">
+              {healthTimeline.map((event, index) => (
+                <div key={index} className="flex items-start gap-4">
+                  <div className={`w-3 h-3 rounded-full mt-1 ${
+                    event.type === 'appointment' ? 'bg-blue-600' :
+                    event.type === 'medication' ? 'bg-purple-600' :
+                    'bg-green-600'
+                  }`} />
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-slate-900">{event.title}</div>
+                      <div className="text-sm text-slate-600">
+                        {new Date(event.date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-600 mt-1">{event.description}</div>
+                    <span className={
+                      'inline-block mt-2 px-2 py-1 rounded-full text-xs font-medium ' +
+                      (event.status === 'completed' ? 'bg-green-100 text-green-700' :
+                       event.status === 'active' ? 'bg-blue-100 text-blue-700' :
+                       'bg-yellow-100 text-yellow-700')
+                    }>
+                      {event.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        </div>
+      </div>
+    </div>
+  );
+}

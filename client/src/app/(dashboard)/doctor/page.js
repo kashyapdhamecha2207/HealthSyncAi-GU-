@@ -4,18 +4,20 @@ import api from '../../../lib/axios';
 import { 
   Activity, Bell, AlertTriangle, Users, Calendar, TrendingUp, 
   Clock, MessageSquare, Phone, Mail, CheckCircle, XCircle,
-  UserPlus, Filter, Search, RefreshCw
+  UserPlus, Filter, Search, RefreshCw, Pill
 } from 'lucide-react';
 
 export default function DoctorDashboard() {
   const [queue, setQueue] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [refillRequests, setRefillRequests] = useState([]);
   const [stats, setStats] = useState({
     todayAppointments: 0,
     totalPatients: 0,
     highRiskPatients: 0,
-    avgWaitTime: 0
+    avgWaitTime: 0,
+    pendingRefills: 0
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('queue');
@@ -24,6 +26,7 @@ export default function DoctorDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    fetchRefillRequests();
     // In a real app, setup websocket for real-time updates
   }, []);
 
@@ -62,6 +65,65 @@ export default function DoctorDashboard() {
       console.error("Failed to fetch dashboard data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRefillRequests = async () => {
+    try {
+      // Load refill requests from localStorage (mock implementation)
+      const storedRequests = JSON.parse(localStorage.getItem('refillRequests') || '[]');
+      setRefillRequests(storedRequests);
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        pendingRefills: storedRequests.length
+      }));
+    } catch (err) {
+      console.error("Failed to fetch refill requests:", err);
+      setRefillRequests([]);
+    }
+  };
+
+  const handleAcceptRefill = async (requestId) => {
+    try {
+      // Update request status
+      const updatedRequests = refillRequests.map(req => 
+        req.id === requestId ? { ...req, status: 'approved', approvedAt: new Date().toISOString() } : req
+      );
+      setRefillRequests(updatedRequests);
+      localStorage.setItem('refillRequests', JSON.stringify(updatedRequests));
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        pendingRefills: updatedRequests.filter(req => req.status === 'pending').length
+      }));
+      
+      alert('Refill request approved successfully!');
+    } catch (err) {
+      alert('Failed to approve refill request');
+    }
+  };
+
+  const handleRejectRefill = async (requestId) => {
+    try {
+      // Update request status
+      const updatedRequests = refillRequests.map(req => 
+        req.id === requestId ? { ...req, status: 'rejected', rejectedAt: new Date().toISOString() } : req
+      );
+      setRefillRequests(updatedRequests);
+      localStorage.setItem('refillRequests', JSON.stringify(updatedRequests));
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        pendingRefills: updatedRequests.filter(req => req.status === 'pending').length
+      }));
+      
+      alert('Refill request rejected!');
+    } catch (err) {
+      alert('Failed to reject refill request');
     }
   };
 
@@ -166,11 +228,11 @@ export default function DoctorDashboard() {
 
         <div className="glass p-6 rounded-2xl">
           <div className="flex items-center gap-3 mb-4">
-            <Clock className="text-amber-600" size={24} />
-            <span className="font-semibold text-slate-900">Avg Wait Time</span>
+            <Pill className="text-purple-600" size={24} />
+            <span className="font-semibold text-slate-900">Pending Refills</span>
           </div>
-          <div className="text-3xl font-bold text-slate-900">{stats.avgWaitTime}m</div>
-          <div className="text-sm text-slate-600">Current estimate</div>
+          <div className="text-3xl font-bold text-slate-900">{stats.pendingRefills}</div>
+          <div className="text-sm text-slate-600">Awaiting approval</div>
         </div>
       </div>
 
@@ -179,7 +241,8 @@ export default function DoctorDashboard() {
         {[
           { id: 'queue', label: 'Live Queue', icon: Users },
           { id: 'appointments', label: 'All Appointments', icon: Calendar },
-          { id: 'patients', label: 'Patient Management', icon: UserPlus }
+          { id: 'patients', label: 'Patient Management', icon: UserPlus },
+          { id: 'refills', label: 'Refill Requests', icon: Pill }
         ].map(tab => (
           <button
             key={tab.id}
@@ -438,6 +501,98 @@ export default function DoctorDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Refill Requests Tab */}
+      {activeTab === 'refills' && (
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-slate-900">Medication Refill Requests</h2>
+            <button 
+              onClick={fetchRefillRequests}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+            >
+              <RefreshCw size={16} /> Refresh
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {refillRequests.length === 0 ? (
+              <div className="text-center py-12">
+                <Pill size={48} className="text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-600">No refill requests</p>
+                <p className="text-sm text-slate-500 mt-2">Patients will appear here when they request medication refills</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {refillRequests.map(request => (
+                  <div key={request.id} className="p-6 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <Pill size={20} className="text-purple-600" />
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{request.medicationName}</h3>
+                            <p className="text-sm text-slate-600">Patient: {request.patientName}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            request.status === 'approved' ? 'bg-green-100 text-green-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {request.status?.toUpperCase() || 'PENDING'}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-slate-500">Dosage</p>
+                            <p className="font-medium text-slate-900">{request.dosage}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Frequency</p>
+                            <p className="font-medium text-slate-900">{request.frequency}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Requested</p>
+                            <p className="font-medium text-slate-900">{request.requestedDate}</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500">Last Refill</p>
+                            <p className="font-medium text-slate-900">{request.lastRefillDate || 'Never'}</p>
+                          </div>
+                        </div>
+
+                        {request.notes && (
+                          <div className="mt-3 p-3 bg-slate-50 rounded-lg">
+                            <p className="text-sm text-slate-700">{request.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {request.status === 'pending' && (
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleAcceptRefill(request.id)}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            <CheckCircle size={16} /> Approve
+                          </button>
+                          <button
+                            onClick={() => handleRejectRefill(request.id)}
+                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                          >
+                            <XCircle size={16} /> Reject
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
