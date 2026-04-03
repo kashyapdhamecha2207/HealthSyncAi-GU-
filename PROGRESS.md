@@ -25,3 +25,4 @@ Commit 63: 🚨 Emergency response improvements
 Commit 64: 👨‍⚕️ Doctor dashboard enhancements
 Commit 65: 🧑‍⚕️ Patient experience improvements
 Commit 66: 👨‍💼 Admin tools and reporting
+Commit 67: 👨‍👩‍👧‍👦 Caregiver features and monitoring
