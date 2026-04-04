@@ -401,14 +401,14 @@ export default function DoctorDashboard() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
                           <button 
-                            onClick={() => triggerSmartAction('followup', app.patientId?._id)}
+                            onClick={() => triggerSmartAction(app.patientId?._id, 'followup')}
                             className="text-teal-600 hover:text-teal-900"
                             title="Send Follow-up Email"
                           >
                             <Mail size={16} />
                           </button>
                           <button 
-                            onClick={() => triggerSmartAction('reminder', app.patientId?._id)}
+                            onClick={() => triggerSmartAction(app.patientId?._id, 'reminder')}
                             className="text-blue-600 hover:text-blue-900"
                             title="Send Message/Reminder"
                           >
