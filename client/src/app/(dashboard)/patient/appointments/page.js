@@ -16,7 +16,14 @@ export default function BookAppointment() {
   });
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ date: '', time: '', doctorId: '' });
+  const [formData, setFormData] = useState({ 
+    date: '', 
+    time: '', 
+    doctorId: '', 
+    reason: '',
+    experience: '',
+    notes: ''
+  });
   const [selectedDoctor, setSelectedDoctor] = useState(null);
 
   useEffect(() => {
@@ -76,6 +83,24 @@ export default function BookAppointment() {
     setFormData({ ...formData, doctorId });
   };
 
+  const handleExportAll = async () => {
+    try {
+      const response = await api.get('/appointments/export');
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'all_appointments.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export appointments');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -85,7 +110,7 @@ export default function BookAppointment() {
       const appointment = response.data;
       
       alert("Appointment booked successfully! 📧 Confirmation emails sent to you and the doctor.");
-      setFormData({ date: '', time: '', doctorId: '' });
+      setFormData({ date: '', time: '', doctorId: '', reason: '', experience: '', notes: '' });
       setSelectedDoctor(null);
       fetchAppointments();
     } catch (err) {
@@ -142,7 +167,15 @@ export default function BookAppointment() {
 
           {/* Appointment Statistics */}
           <div className="p-6 rounded-xl bg-white border border-slate-200">
-            <h3 className="text-xl font-semibold text-slate-900 mb-6">Appointment Statistics</h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-slate-900">Appointment Statistics</h3>
+              <button
+                onClick={handleExportAll}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center gap-2"
+              >
+                📊 Export All Records
+              </button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="text-center p-4 bg-slate-50 rounded-lg">
                 <div className="text-2xl font-bold text-slate-900">{appointmentStats.total}</div>
@@ -251,6 +284,53 @@ export default function BookAppointment() {
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     value={formData.time}
                     onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                    <Clock size={16} />
+                    Experience Years
+                  </label>
+                  <select 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  >
+                    <option value="">Select experience</option>
+                    <option value="0-1">0-1 years</option>
+                    <option value="1-3">1-3 years</option>
+                    <option value="3-5">3-5 years</option>
+                    <option value="5-10">5-10 years</option>
+                    <option value="10-15">10-15 years</option>
+                    <option value="15-20">15-20 years</option>
+                    <option value="20+">20+ years</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Reason for Visit
+                  </label>
+                  <textarea 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    rows="4"
+                    placeholder="Describe your symptoms or reason for visit..."
+                    value={formData.reason}
+                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Additional Notes
+                  </label>
+                  <textarea 
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    rows="3"
+                    placeholder="Any additional information..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   />
                 </div>
               </div>
