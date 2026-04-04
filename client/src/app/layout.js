@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata = {
   title: "HealthSync AI+ | Smart Care & Scheduling",
   description: "A unified healthcare platform reducing no-shows and improving patient adherence.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {
