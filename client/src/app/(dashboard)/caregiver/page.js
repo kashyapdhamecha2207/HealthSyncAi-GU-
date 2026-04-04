@@ -11,6 +11,10 @@ export default function CaregiverDashboard() {
   const [linkedPatients, setLinkedPatients] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reminderModal, setReminderModal] = useState(null);
+  const [reminderMsg, setReminderMsg] = useState('');
+  const [reminderType, setReminderType] = useState('medication');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchCaregiverData();
@@ -18,12 +22,9 @@ export default function CaregiverDashboard() {
 
   const fetchCaregiverData = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      if (activeTab === 'patients') {
-        const patientsRes = await api.get('/caregiver/patients');
-        setLinkedPatients(patientsRes.data || []);
-      }
+      // Always load patients for overview counts
+      const patientsRes = await api.get('/caregiver/patients');
+      setLinkedPatients(patientsRes.data || []);
       
       if (activeTab === 'notifications') {
         const notificationsRes = await api.get('/caregiver/notifications');
@@ -36,24 +37,31 @@ export default function CaregiverDashboard() {
     }
   };
 
-  const sendReminder = async (patientId, message) => {
+  const sendReminder = async () => {
+    if (!reminderModal || !reminderMsg.trim()) return;
+    setSending(true);
     try {
-      await api.post('/caregiver/send-reminder', {
-        patientId,
-        message,
-        type: 'medication'
+      const res = await api.post('/caregiver/send-reminder', {
+        patientId: reminderModal._id,
+        message: reminderMsg,
+        type: reminderType
       });
-      alert('Reminder sent successfully!');
-      fetchCaregiverData();
+      alert(res.data.message || 'Reminder sent!');
+      setReminderModal(null);
+      setReminderMsg('');
+      setReminderType('medication');
     } catch (err) {
       alert('Failed to send reminder');
+    } finally {
+      setSending(false);
     }
   };
 
   const checkPatientStatus = async (patientId) => {
     try {
       const statusRes = await api.get(`/caregiver/patient-status/${patientId}`);
-      alert(`Patient Status: ${statusRes.data.status}`);
+      const s = statusRes.data;
+      alert(`Patient: ${s.patient?.name}\nStatus: ${s.status}\nTotal Visits: ${s.stats?.totalVisits}\nEmergency Visits: ${s.stats?.emergencyVisits}\nMedications: ${s.currentMedications?.map(m => m.name).join(', ') || 'None'}`);
     } catch (err) {
       alert('Failed to check patient status');
     }
@@ -61,12 +69,15 @@ export default function CaregiverDashboard() {
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading caregiver dashboard...</div>;
 
+  const patientsWithUpcoming = linkedPatients.filter(p => p.nextAppointment);
+  const emergencyPatients = linkedPatients.filter(p => p.vitals?.temperature > 100 || p.vitals?.heartRate > 100);
+
   return (
     <div className="animate-fade-in">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Caregiver Dashboard</h1>
-          <p className="text-slate-600 mt-1">Monitor and support your loved ones healthcare journey</p>
+          <p className="text-slate-600 mt-1">Monitor and support your patients healthcare journey</p>
         </div>
       </div>
 
@@ -99,10 +110,10 @@ export default function CaregiverDashboard() {
             <div className="glass p-6 rounded-2xl">
               <div className="flex items-center gap-3 mb-4">
                 <Users className="text-purple-600" size={24} />
-                <span className="font-semibold text-slate-900">Linked Patients</span>
+                <span className="font-semibold text-slate-900">Total Patients</span>
               </div>
               <div className="text-3xl font-bold text-slate-900">{linkedPatients.length}</div>
-              <div className="text-sm text-slate-600">Under your care</div>
+              <div className="text-sm text-slate-600">Registered in system</div>
             </div>
 
             <div className="glass p-6 rounded-2xl">
@@ -110,28 +121,52 @@ export default function CaregiverDashboard() {
                 <Heart className="text-red-600" size={24} />
                 <span className="font-semibold text-slate-900">Health Alerts</span>
               </div>
-              <div className="text-3xl font-bold text-slate-900">2</div>
-              <div className="text-sm text-slate-600">Active today</div>
+              <div className="text-3xl font-bold text-slate-900">{emergencyPatients.length}</div>
+              <div className="text-sm text-slate-600">Elevated vitals</div>
             </div>
 
             <div className="glass p-6 rounded-2xl">
               <div className="flex items-center gap-3 mb-4">
                 <Calendar className="text-blue-600" size={24} />
-                <span className="font-semibold text-slate-900">Appointments</span>
+                <span className="font-semibold text-slate-900">Upcoming Appts</span>
               </div>
-              <div className="text-3xl font-bold text-slate-900">3</div>
-              <div className="text-sm text-slate-600">This week</div>
+              <div className="text-3xl font-bold text-slate-900">{patientsWithUpcoming.length}</div>
+              <div className="text-sm text-slate-600">Patients with appointments</div>
             </div>
 
             <div className="glass p-6 rounded-2xl">
               <div className="flex items-center gap-3 mb-4">
-                <Clock className="text-emerald-600" size={24} />
-                <span className="font-semibold text-slate-900">Response Time</span>
+                <Activity className="text-emerald-600" size={24} />
+                <span className="font-semibold text-slate-900">Active Meds</span>
               </div>
-              <div className="text-3xl font-bold text-slate-900">2.5h</div>
-              <div className="text-sm text-slate-600">Average</div>
+              <div className="text-3xl font-bold text-slate-900">{linkedPatients.filter(p => p.medications?.length > 0).length}</div>
+              <div className="text-sm text-slate-600">Patients on medication</div>
             </div>
           </div>
+
+          {/* Recent patients summary */}
+          {linkedPatients.length > 0 && (
+            <div className="glass p-6 rounded-2xl">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">Recent Patient Activity</h3>
+              <div className="space-y-3">
+                {linkedPatients.filter(p => p.lastVisit).slice(0, 5).map(p => (
+                  <div key={p._id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-none">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700">{p.name?.substring(0, 2).toUpperCase()}</div>
+                      <div>
+                        <span className="font-medium text-slate-900">{p.name}</span>
+                        <span className="text-sm text-slate-500 ml-2">{p.department}</span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      {p.lastVisit ? new Date(p.lastVisit).toLocaleDateString() : 'No visits'}
+                      {p.medications?.length > 0 && <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">{p.medications.length} meds</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -170,21 +205,27 @@ export default function CaregiverDashboard() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm">
                       <Heart size={14} className="text-red-500" />
-                      <span className="text-slate-600">Blood Pressure: {patient.vitals?.bloodPressure || 'Normal'}</span>
+                      <span className="text-slate-600">BP: {patient.vitals?.bloodPressure ? `${patient.vitals.bloodPressure.systolic}/${patient.vitals.bloodPressure.diastolic}` : 'No record'} {patient.vitals?.heartRate ? `· HR: ${patient.vitals.heartRate}bpm` : ''}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar size={14} className="text-blue-500" />
-                      <span className="text-slate-600">Next Appointment: {patient.nextAppointment || 'Not scheduled'}</span>
+                      <span className="text-slate-600">Next Appt: {patient.nextAppointment || 'Not scheduled'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Activity size={14} className="text-emerald-500" />
-                      <span className="text-slate-600">Medication Adherence: {patient.adherence || '85%'}</span>
+                      <span className="text-slate-600">Visits: {patient.totalVisits || 0} · Meds: {patient.medications?.length > 0 ? patient.medications.join(', ') : 'None'}</span>
                     </div>
+                    {patient.lastVisit && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock size={14} className="text-amber-500" />
+                        <span className="text-slate-600">Last visit: {new Date(patient.lastVisit).toLocaleDateString()} · {patient.department}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-2 mt-4">
                     <button 
-                      onClick={() => sendReminder(patient._id, 'Time for your medication')}
+                      onClick={() => { setReminderModal(patient); setReminderMsg(''); setReminderType('medication'); }}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm"
                     >
                       <Mail size={14} />
@@ -256,6 +297,56 @@ export default function CaregiverDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Reminder Modal */}
+      {reminderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
+            <button onClick={() => setReminderModal(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+            <h3 className="text-xl font-bold text-slate-900 mb-1">Send Reminder</h3>
+            <p className="text-sm text-slate-500 mb-6">To: <span className="font-semibold text-slate-700">{reminderModal.name}</span> ({reminderModal.email})</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Type</label>
+                <div className="flex gap-2">
+                  <button onClick={() => setReminderType('medication')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all border-2 ${reminderType === 'medication' ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                    💊 Medication
+                  </button>
+                  <button onClick={() => setReminderType('general')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all border-2 ${reminderType === 'general' ? 'bg-purple-600 text-white border-purple-600' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                    💬 General
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 mb-2 block uppercase">Message</label>
+                <textarea
+                  value={reminderMsg}
+                  onChange={(e) => setReminderMsg(e.target.value)}
+                  placeholder={reminderType === 'medication' ? 'Time to take your medication...' : 'Your message to the patient...'}
+                  className="w-full p-4 bg-slate-50 rounded-xl border-2 border-slate-100 font-medium outline-none focus:border-purple-300 resize-none h-28 placeholder:text-slate-300"
+                />
+              </div>
+
+              {reminderType === 'medication' && reminderModal.medications?.length > 0 && (
+                <div className="bg-blue-50 p-3 rounded-xl">
+                  <p className="text-xs font-bold text-blue-500 mb-1">Current Medications:</p>
+                  <p className="text-sm font-medium text-blue-700">{reminderModal.medications.join(', ')}</p>
+                </div>
+              )}
+
+              <button
+                onClick={sendReminder}
+                disabled={!reminderMsg.trim() || sending}
+                className={`w-full py-3 text-white rounded-xl font-bold transition-all ${!reminderMsg.trim() || sending ? 'bg-slate-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-200'}`}
+              >
+                {sending ? 'Sending...' : `📧 Send Email to ${reminderModal.name}`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

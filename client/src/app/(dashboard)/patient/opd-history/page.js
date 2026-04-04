@@ -20,7 +20,7 @@ export default function OPDHistory() {
   const fetchOPDHistory = async () => {
     try {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const patientId = user.id;
+      const patientId = user._id || user.id;
       
       // Mock OPD history data
       const mockVisits = [

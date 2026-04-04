@@ -70,14 +70,14 @@ export default function DoctorDashboard() {
 
   const fetchRefillRequests = async () => {
     try {
-      // Load refill requests from localStorage (mock implementation)
-      const storedRequests = JSON.parse(localStorage.getItem('refillRequests') || '[]');
-      setRefillRequests(storedRequests);
+      const res = await api.get('/refills');
+      const requests = res.data.data || [];
+      setRefillRequests(requests);
       
       // Update stats
       setStats(prev => ({
         ...prev,
-        pendingRefills: storedRequests.length
+        pendingRefills: requests.length
       }));
     } catch (err) {
       console.error("Failed to fetch refill requests:", err);
@@ -87,42 +87,26 @@ export default function DoctorDashboard() {
 
   const handleAcceptRefill = async (requestId) => {
     try {
-      // Update request status
-      const updatedRequests = refillRequests.map(req => 
-        req.id === requestId ? { ...req, status: 'approved', approvedAt: new Date().toISOString() } : req
-      );
-      setRefillRequests(updatedRequests);
-      localStorage.setItem('refillRequests', JSON.stringify(updatedRequests));
+      await api.patch(`/refills/${requestId}`, { status: 'approved' });
       
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        pendingRefills: updatedRequests.filter(req => req.status === 'pending').length
-      }));
-      
+      // Refresh list and stats
+      fetchRefillRequests();
       alert('Refill request approved successfully!');
     } catch (err) {
+      console.error("Approval error:", err);
       alert('Failed to approve refill request');
     }
   };
 
   const handleRejectRefill = async (requestId) => {
     try {
-      // Update request status
-      const updatedRequests = refillRequests.map(req => 
-        req.id === requestId ? { ...req, status: 'rejected', rejectedAt: new Date().toISOString() } : req
-      );
-      setRefillRequests(updatedRequests);
-      localStorage.setItem('refillRequests', JSON.stringify(updatedRequests));
+      await api.patch(`/refills/${requestId}`, { status: 'rejected' });
       
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        pendingRefills: updatedRequests.filter(req => req.status === 'pending').length
-      }));
-      
+      // Refresh list and stats
+      fetchRefillRequests();
       alert('Refill request rejected!');
     } catch (err) {
+      console.error("Rejection error:", err);
       alert('Failed to reject refill request');
     }
   };
@@ -149,7 +133,7 @@ export default function DoctorDashboard() {
           channels = ['in-app'];
       }
 
-      await api.post('/notifications/send', {
+      await api.post('/notifications', {
         userId,
         message,
         type: actionType,
@@ -417,14 +401,16 @@ export default function DoctorDashboard() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
                           <button 
-                            onClick={() => triggerSmartAction(app.patientId?._id, 'followup')}
+                            onClick={() => triggerSmartAction('followup', app.patientId?._id)}
                             className="text-teal-600 hover:text-teal-900"
+                            title="Send Follow-up Email"
                           >
                             <Mail size={16} />
                           </button>
                           <button 
-                            onClick={() => triggerSmartAction(app.patientId?._id, 'reminder')}
+                            onClick={() => triggerSmartAction('reminder', app.patientId?._id)}
                             className="text-blue-600 hover:text-blue-900"
+                            title="Send Message/Reminder"
                           >
                             <MessageSquare size={16} />
                           </button>
@@ -527,14 +513,14 @@ export default function DoctorDashboard() {
             ) : (
               <div className="divide-y divide-slate-200">
                 {refillRequests.map(request => (
-                  <div key={request.id} className="p-6 hover:bg-slate-50 transition-colors">
+                  <div key={request._id} className="p-6 hover:bg-slate-50 transition-colors">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
                           <Pill size={20} className="text-purple-600" />
                           <div>
                             <h3 className="font-semibold text-slate-900">{request.medicationName}</h3>
-                            <p className="text-sm text-slate-600">Patient: {request.patientName}</p>
+                            <p className="text-sm text-slate-600">Patient: {request.patientId?.name || 'Unknown'}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
@@ -574,13 +560,13 @@ export default function DoctorDashboard() {
                       {request.status === 'pending' && (
                         <div className="flex gap-2 ml-4">
                           <button
-                            onClick={() => handleAcceptRefill(request.id)}
+                            onClick={() => handleAcceptRefill(request._id)}
                             className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                           >
                             <CheckCircle size={16} /> Approve
                           </button>
                           <button
-                            onClick={() => handleRejectRefill(request.id)}
+                            onClick={() => handleRejectRefill(request._id)}
                             className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                           >
                             <XCircle size={16} /> Reject
