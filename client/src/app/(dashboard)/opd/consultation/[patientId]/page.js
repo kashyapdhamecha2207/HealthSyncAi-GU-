@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import api from '../../../../lib/axios';
+import api from '../../../../../lib/axios';
 import { 
   User, Activity, Clock, FileText, Pill, TestTube, 
   CreditCard, Save, Send, AlertTriangle, CheckCircle
