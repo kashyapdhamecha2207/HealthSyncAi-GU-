@@ -337,7 +337,7 @@ export default function BookAppointment() {
 
               <button 
                 type="submit" 
-                disabled={loading || !formData.doctorId || !formData.date || !formData.time}
+                disabled={loading || !formData.doctorId || !formData.date || !formData.time || !formData.reason}
                 className="w-full py-4 bg-blue-600 text-white rounded-xl shadow-lg hover:bg-blue-700 transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Booking...' : 'Book Appointment'}
