@@ -7,9 +7,12 @@ export default function Login() {
   const router = useRouter();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     try {
       const { data } = await api.post('/auth/login', formData);
       localStorage.setItem('token', data.token);
@@ -18,6 +21,8 @@ export default function Login() {
       router.push(`/${data.role}`);
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -50,8 +55,8 @@ export default function Login() {
             />
           </div>
           
-          <button type="submit" className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-teal-500/30 transition-all">
-            Sign In to HealthSync
+          <button type="submit" disabled={loading} className="w-full py-4 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold shadow-lg shadow-teal-500/30 transition-all disabled:opacity-50">
+            {loading ? 'Signing In...' : 'Sign In to HealthSync'}
           </button>
         </form>
         

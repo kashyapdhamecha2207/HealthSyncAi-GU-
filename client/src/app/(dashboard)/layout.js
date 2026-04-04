@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }) {
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Sidebar Navigation */}
-      <aside className="w-64 glass-dark text-white border-r border-white/10 flex flex-col fixed h-full z-40">
+      <aside className="w-64 glass-dark text-white border-r border-white/10 flex flex-col fixed h-full z-40 overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white font-bold text-xl">+</div>
