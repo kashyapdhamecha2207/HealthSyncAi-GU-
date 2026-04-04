@@ -30,7 +30,7 @@ exports.getAppointments = async (req, res) => {
 // @access  Private
 exports.createAppointment = async (req, res) => {
   try {
-    const { doctorId, date, time } = req.body;
+    const { doctorId, date, time, reason, experience, notes } = req.body;
 
     // AI logic: Evaluate risk score upon booking
     const pastAppointments = await Appointment.find({ patientId: req.user.id });
@@ -51,6 +51,9 @@ exports.createAppointment = async (req, res) => {
       doctorId,
       date,
       time,
+      reason: reason || '',
+      experience: experience || '',
+      notes: notes || '',
       riskScore: score,
       riskLevel: classification
     });

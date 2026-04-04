@@ -312,8 +312,22 @@ exports.getUsers = async (req, res) => {
 
     const total = await User.countDocuments(filter);
 
+    // If fetching doctors, enrich with some basic stats
+    let enrichedUsers = users;
+    if (role === 'doctor') {
+      enrichedUsers = await Promise.all(users.map(async (user) => {
+        const u = user.toObject();
+        const [totalPatients, activeConsultations] = await Promise.all([
+          OPDVisit.countDocuments({ doctorId: user._id }),
+          OPDVisit.countDocuments({ doctorId: user._id, status: 'in-progress' })
+        ]);
+        u.stats = { totalPatients, activeConsultations };
+        return u;
+      }));
+    }
+
     res.json({
-      users,
+      users: enrichedUsers,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({});
   const [analytics, setAnalytics] = useState({});
   const [users, setUsers] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('month');
@@ -20,7 +21,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [activeTab, dateRange]);
+  }, [activeTab, dateRange, searchTerm]);
 
   const fetchDashboardData = async () => {
     try {
@@ -45,6 +46,13 @@ export default function AdminDashboard() {
           params: { search: searchTerm }
         });
         setUsers(usersRes.data.users || []);
+      }
+      
+      if (activeTab === 'doctors') {
+        const doctorsRes = await api.get('/admin/users', {
+          params: { role: 'doctor', search: searchTerm }
+        });
+        setDoctors(doctorsRes.data.users || []);
       }
       
       if (activeTab === 'logs') {
@@ -108,6 +116,7 @@ export default function AdminDashboard() {
         {[
           { id: 'overview', label: 'Overview', icon: Activity },
           { id: 'analytics', label: 'Analytics', icon: TrendingUp },
+          { id: 'doctors', label: 'Doctors', icon: Users },
           { id: 'users', label: 'User Management', icon: Users },
           { id: 'logs', label: 'System Logs', icon: FileText }
         ].map(tab => (
@@ -322,7 +331,85 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* User Management Tab */}
+      {/* Doctors Tab */}
+      {activeTab === 'doctors' && (
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold text-slate-900">Doctors List</h2>
+            <div className="flex gap-3">
+              <div className="relative">
+                <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search doctors..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 w-64"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {doctors.map((doctor) => (
+              <div key={doctor._id} className="glass p-6 rounded-2xl hover:shadow-lg transition-all border border-slate-100">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
+                      {doctor.name?.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900">{doctor.name}</h4>
+                      <p className="text-sm text-slate-500">{doctor.email}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-md ${
+                    doctor.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
+                  }`}>
+                    {doctor.status || 'active'}
+                  </span>
+                </div>
+                
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Active Cases</span>
+                    <span className={`font-bold ${doctor.stats?.activeConsultations > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {doctor.stats?.activeConsultations || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Total Patients</span>
+                    <span className="font-semibold text-slate-900">{doctor.stats?.totalPatients || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Department</span>
+                    <span className="font-semibold text-slate-900">{doctor.department || 'General Medicine'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Speciality</span>
+                    <span className="font-semibold text-slate-900">{doctor.speciality || 'General Practice'}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-6">
+                  <button className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-bold transition-all">
+                    View Profile
+                  </button>
+                  <button className="flex-1 py-2 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-lg text-sm font-bold transition-all">
+                    Assign Dept
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {doctors.length === 0 && (
+            <div className="p-12 text-center bg-white rounded-3xl text-slate-400 font-bold italic border border-slate-100 shadow-sm">
+              No doctors found matching your search.
+            </div>
+          )}
+        </div>
+      )}
       {activeTab === 'users' && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
