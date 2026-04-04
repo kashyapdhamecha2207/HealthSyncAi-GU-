@@ -14,6 +14,13 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState({});
   const [users, setUsers] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [editDoctor, setEditDoctor] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    speciality: '',
+    experience: '',
+    department: ''
+  });
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('month');
@@ -80,6 +87,18 @@ export default function AdminDashboard() {
     // Mock export functionality
     console.log(`Exporting ${type} data...`);
     alert(`${type} data would be exported here`);
+  };
+
+  const handleUpdateDoctor = async (e) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/admin/users/${editDoctor._id}`, editFormData);
+      alert('Doctor updated successfully!');
+      setEditDoctor(null);
+      fetchDashboardData();
+    } catch (err) {
+      alert('Failed to update doctor');
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center">Loading admin dashboard...</div>;
@@ -389,14 +408,36 @@ export default function AdminDashboard() {
                     <span className="text-slate-500">Speciality</span>
                     <span className="font-semibold text-slate-900">{doctor.speciality || 'General Practice'}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Experience</span>
+                    <span className="font-semibold text-slate-900">{doctor.experience || 'Not set'}</span>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 mt-6">
-                  <button className="flex-1 py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg text-sm font-bold transition-all">
-                    View Profile
+                  <button 
+                    onClick={() => {
+                      setEditDoctor(doctor);
+                      setEditFormData({
+                        name: doctor.name || '',
+                        speciality: doctor.speciality || '',
+                        experience: doctor.experience || '',
+                        department: doctor.department || ''
+                      });
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-semibold"
+                  >
+                    Edit Profile
                   </button>
-                  <button className="flex-1 py-2 bg-teal-50 hover:bg-teal-100 text-teal-600 rounded-lg text-sm font-bold transition-all">
-                    Assign Dept
+                  <button 
+                    onClick={() => updateUserStatus(doctor._id, doctor.status === 'active' ? 'inactive' : 'active')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                      doctor.status === 'active' 
+                        ? 'bg-red-50 text-red-700 hover:bg-red-100' 
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {doctor.status === 'active' ? 'Suspend' : 'Activate'}
                   </button>
                 </div>
               </div>

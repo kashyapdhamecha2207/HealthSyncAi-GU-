@@ -4,11 +4,12 @@ import api from '../../../lib/axios';
 import { 
   AlertTriangle, Users, Clock, Activity, TrendingUp,
   Phone, MapPin, Ambulance, Bell, RefreshCw,
-  Filter, Search, Calendar, Eye, CheckCircle
+  Filter, Search, Calendar, Eye, CheckCircle, XCircle
 } from 'lucide-react';
 
 export default function EmergencyDashboard() {
   const [activeTab, setActiveTab] = useState('priority-queue');
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [priorityQueue, setPriorityQueue] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
@@ -23,18 +24,23 @@ export default function EmergencyDashboard() {
     try {
       setLoading(true);
       
+      const promises = [
+        api.get('/emergency/stats', { params: { period: '24h' } })
+      ];
+
       if (activeTab === 'priority-queue') {
-        const queueRes = await api.get('/emergency/priority-queue', {
-          params: { department: selectedDepartment !== 'all' ? selectedDepartment : undefined }
-        });
-        setPriorityQueue(queueRes.data.data || []);
+        promises.push(
+          api.get('/emergency/priority-queue', {
+            params: { department: selectedDepartment !== 'all' ? selectedDepartment : undefined }
+          })
+        );
       }
+
+      const [statsRes, queueRes] = await Promise.all(promises);
       
-      if (activeTab === 'stats') {
-        const statsRes = await api.get('/emergency/stats', { 
-          params: { period: '24h' } 
-        });
-        setStats(statsRes.data || {});
+      setStats(statsRes.data || {});
+      if (queueRes) {
+        setPriorityQueue(queueRes.data.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch emergency data:', err);
@@ -55,6 +61,16 @@ export default function EmergencyDashboard() {
       fetchEmergencyData(); // Refresh queue
     } catch (err) {
       alert('Failed to create priority slot');
+    }
+  };
+
+  const markAsSeen = async (id) => {
+    try {
+      await api.patch(`/emergency/queue/${id}/seen`);
+      alert('Patient marked as seen!');
+      fetchEmergencyData();
+    } catch (err) {
+      alert('Failed to mark as seen');
     }
   };
 
@@ -264,11 +280,15 @@ export default function EmergencyDashboard() {
                         <Ambulance size={14} />
                         Create Priority Slot
                       </button>
-                      <button className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm">
+                      <button 
+                        onClick={() => setSelectedPatient(patient)}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm">
                         <Eye size={14} />
                         View Details
                       </button>
-                      <button className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm">
+                      <button 
+                        onClick={() => markAsSeen(patient.id)}
+                        className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-sm">
                         <CheckCircle size={14} />
                         Mark as Seen
                       </button>
@@ -278,6 +298,68 @@ export default function EmergencyDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* View Details Modal */}
+      {selectedPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h2 className="text-xl font-bold text-slate-800">Patient Details</h2>
+              <button onClick={() => setSelectedPatient(null)} className="text-slate-400 hover:text-slate-600">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Patient Name</span>
+                  <div className="font-semibold text-slate-800">{selectedPatient.patientId?.name || 'Unknown'}</div>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Contact</span>
+                  <div className="font-semibold text-slate-800">{selectedPatient.patientId?.phone || 'No phone'}</div>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Assigned Doctor</span>
+                  <div className="font-semibold text-slate-800">Dr. {selectedPatient.doctorId?.name || 'Unassigned'}</div>
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Department</span>
+                  <div className="font-semibold text-slate-800">{selectedPatient.doctorId?.department || 'N/A'}</div>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Chief Complaint</span>
+                  <div className="font-semibold text-slate-800 p-3 bg-slate-50 rounded-lg mt-1">{selectedPatient.chiefComplaint}</div>
+                </div>
+                <div className="col-span-2 flex gap-4">
+                  <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100">
+                    <span className="text-xs font-bold text-red-500 uppercase">Priority Status</span>
+                    <div className="font-semibold text-red-700 uppercase">{selectedPatient.emergencyLevel || selectedPatient.riskLevel || 'URGENT'}</div>
+                  </div>
+                  <div className="flex-1 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <span className="text-xs font-bold text-blue-500 uppercase">Wait Time</span>
+                    <div className="font-semibold text-blue-700">{selectedPatient.waitTime || 0} mins</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
+              <button 
+                onClick={() => { createPrioritySlot(selectedPatient.patientId?._id, selectedPatient.emergencyLevel); setSelectedPatient(null); }}
+                className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition"
+              >
+                Create Priority Slot
+              </button>
+              <button 
+                onClick={() => setSelectedPatient(null)}
+                className="py-3 px-6 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

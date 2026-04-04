@@ -85,19 +85,26 @@ export default function BookAppointment() {
 
   const handleExportAll = async () => {
     try {
+      console.log('📊 Starting export of all appointments...');
       const response = await api.get('/appointments/export');
+      console.log('✅ Export response received:', response);
+      
       const blob = new Blob([response.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'all_appointments.csv';
+      a.download = `all_appointments_${new Date().toISOString().split('T')[0]}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      
+      console.log('📁 Export completed successfully');
+      alert('All appointments exported successfully! 📁');
     } catch (err) {
-      console.error('Export failed:', err);
-      alert('Failed to export appointments');
+      console.error('❌ Export failed:', err);
+      console.error('🔗 API Error:', err.response?.data);
+      alert(`Failed to export appointments: ${err.response?.data?.message || err.message || 'Unknown error'}`);
     }
   };
 
@@ -105,16 +112,22 @@ export default function BookAppointment() {
     e.preventDefault();
     setLoading(true);
     
+    console.log('📅 Submitting appointment:', formData);
+    
     try {
       const response = await api.post('/appointments', formData);
       const appointment = response.data;
       
+      console.log('✅ Appointment created:', appointment);
       alert("Appointment booked successfully! 📧 Confirmation emails sent to you and the doctor.");
       setFormData({ date: '', time: '', doctorId: '', reason: '', experience: '', notes: '' });
       setSelectedDoctor(null);
       fetchAppointments();
     } catch (err) {
-      alert("Failed to book appointment. Please try again.");
+      console.error('❌ Appointment booking failed:', err);
+      console.error('📊 Form data being sent:', formData);
+      console.error('🔗 API Error Response:', err.response?.data);
+      alert(`Failed to book appointment: ${err.response?.data?.message || err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -247,16 +260,16 @@ export default function BookAppointment() {
                     <option value="">Choose a doctor...</option>
                     {doctors.map(doctor => (
                       <option key={doctor._id} value={doctor._id}>
-                        Dr. {doctor.name} - {doctor.specialty}
+                        Dr. {doctor.name} - {doctor.speciality} {doctor.experience ? `(${doctor.experience})` : ''}
                       </option>
                     ))}
                   </select>
                   {selectedDoctor && (
                     <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-xs text-blue-800">
-                        <strong>Dr. {selectedDoctor.name}</strong> - {selectedDoctor.specialty}
+                        <strong>Dr. {selectedDoctor.name}</strong> - {selectedDoctor.speciality}
                       </p>
-                      <p className="text-xs text-blue-600">Experience: {selectedDoctor.experience}</p>
+                      <p className="text-xs text-blue-600">Experience: {selectedDoctor.experience || 'Not specified'}</p>
                     </div>
                   )}
                 </div>
@@ -287,27 +300,6 @@ export default function BookAppointment() {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-                    <Clock size={16} />
-                    Experience Years
-                  </label>
-                  <select 
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                    value={formData.experience}
-                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                  >
-                    <option value="">Select experience</option>
-                    <option value="0-1">0-1 years</option>
-                    <option value="1-3">1-3 years</option>
-                    <option value="3-5">3-5 years</option>
-                    <option value="5-10">5-10 years</option>
-                    <option value="10-15">10-15 years</option>
-                    <option value="15-20">15-20 years</option>
-                    <option value="20+">20+ years</option>
-                  </select>
-                </div>
-
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Reason for Visit

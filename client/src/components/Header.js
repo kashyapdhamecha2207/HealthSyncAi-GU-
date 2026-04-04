@@ -23,7 +23,13 @@ export default function Header() {
     }
   };
 
-  const isDashboardRoute = pathname.startsWith('/patient') || pathname.startsWith('/doctor') || pathname.startsWith('/admin');
+  const isDashboardRoute = 
+    pathname.startsWith('/patient') || 
+    pathname.startsWith('/doctor') || 
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/opd') ||
+    pathname.startsWith('/emergency') ||
+    pathname.startsWith('/caregiver');
 
   // Only show header on non-dashboard routes
   if (isDashboardRoute) return null;

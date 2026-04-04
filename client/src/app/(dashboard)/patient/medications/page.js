@@ -41,14 +41,9 @@ export default function Medications() {
   const handleAddMedication = async (e) => {
     e.preventDefault();
     try {
-      // Mock API call
-      const newMedication = {
-        ...medicationForm,
-        id: Date.now().toString(),
-        adherence: 100,
-        refills: 0
-      };
-      setMedications([...medications, newMedication]);
+      setLoading(true);
+      const res = await api.post('/medications', medicationForm);
+      setMedications([...medications, res.data]);
       setMedicationForm({
         name: '',
         dosage: '',
@@ -62,13 +57,18 @@ export default function Medications() {
       setShowAddForm(false);
       alert('Medication added successfully!');
     } catch (err) {
-      alert('Failed to add medication');
+      console.error('Add medication error:', err);
+      alert('Failed to add medication: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteMedication = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this medication?')) return;
     try {
-      setMedications(medications.filter(med => med.id !== id));
+      await api.delete(`/medications/${id}`);
+      setMedications(medications.filter(med => (med._id || med.id) !== id));
       alert('Medication deleted successfully!');
     } catch (err) {
       alert('Failed to delete medication');

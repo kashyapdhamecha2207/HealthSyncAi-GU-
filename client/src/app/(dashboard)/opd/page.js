@@ -136,12 +136,19 @@ export default function OPDDashboard() {
   };
 
   // Call a patient — starts 10s countdown
-  const callPatient = useCallback((patientId) => {
+  const callPatient = useCallback(async (patientId) => {
     // Clear any existing timer
     if (timerRef.current) clearInterval(timerRef.current);
     setCalledPatientId(patientId);
     setShowActions(false);
     setCallTimer(10);
+
+    try {
+      // Send the email to the patient natively
+      await api.post(`/opd/queue/${patientId}/notify`);
+    } catch (err) {
+      console.error('Failed to dispatch notification email: ', err);
+    }
 
     timerRef.current = setInterval(() => {
       setCallTimer(prev => {
@@ -187,6 +194,21 @@ export default function OPDDashboard() {
       console.error('Skip error:', err);
     }
   }, [callPatient]);
+
+  const recallPatient = async (patientId) => {
+    try {
+      await api.patch(`/opd/queue/${patientId}/status`, { status: 'waiting' });
+      // Refresh queue
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const doctorId = user._id || user.id;
+      const queueRes = await api.get(`/opd/queue/${doctorId}`);
+      setQueue(queueRes.data.data || []);
+      // Then call them
+      callPatient(patientId);
+    } catch (err) {
+      console.error('Recall error:', err);
+    }
+  };
 
   // Start consultation for called patient
   const startConsultation = async (queueId) => {
@@ -437,7 +459,7 @@ export default function OPDDashboard() {
                         <p className="text-xs text-amber-600 font-bold">{p.department} · Skipped</p>
                       </div>
                     </div>
-                    <button onClick={() => callPatient(p._id)} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all flex items-center gap-2">
+                    <button onClick={() => recallPatient(p._id)} className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all flex items-center gap-2">
                       <Phone size={14} /> Re-Call
                     </button>
                   </div>
