@@ -24,6 +24,13 @@ exports.registerOPDPatient = async (req, res) => {
       isEmergency
     } = req.body;
 
+    if (!mongoose.Types.ObjectId.isValid(patientId) || !mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid Patient or Doctor ID' 
+      });
+    }
+
     // Get patient and doctor details
     const [patient, doctor] = await Promise.all([
       User.findById(patientId),
@@ -53,12 +60,12 @@ exports.registerOPDPatient = async (req, res) => {
       patientAge: patient.age,
       patientGender: patient.gender,
       doctorId,
-      department: department || doctor.department,
+      department: department || doctor.department || 'General Medicine',
       queueNumber,
       category: visitType,
       priority: isEmergency ? 'emergency' : 'normal',
-      appointmentId,
-      chiefComplaint,
+      ...(appointmentId ? { appointmentId } : {}),
+      chiefComplaint: chiefComplaint || 'Routine Checkup',
       riskScore: score,
       riskLevel: classification,
       isEmergency: isEmergency || false
@@ -68,10 +75,10 @@ exports.registerOPDPatient = async (req, res) => {
     const opdVisit = await OPDVisit.create({
       patientId,
       doctorId,
-      appointmentId,
+      ...(appointmentId ? { appointmentId } : {}),
       visitType,
-      department: department || doctor.department,
-      chiefComplaint,
+      department: department || doctor.department || 'General Medicine',
+      chiefComplaint: chiefComplaint || 'Routine Checkup',
       symptoms: symptoms || [],
       duration,
       severity,
@@ -103,10 +110,10 @@ exports.registerOPDPatient = async (req, res) => {
 
   } catch (error) {
     console.error('OPD Registration Error:', error);
+    // Print full error string temporarily so we can identify the schema violation
     res.status(500).json({ 
       success: false, 
-      message: 'Server error during OPD registration', 
-      error: error.message 
+      message: `Server error during OPD registration: ${error.message}`
     });
   }
 };
@@ -118,6 +125,13 @@ exports.getOPDQueue = async (req, res) => {
   try {
     const { doctorId } = req.params;
     const { department } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid Doctor ID provided' 
+      });
+    }
 
     let filter = { doctorId };
     if (department) filter.department = department;
@@ -241,23 +255,46 @@ exports.completeConsultation = async (req, res) => {
       });
     }
 
+    // Format diagnosis — handle both string and object
+    let formattedDiagnosis = diagnosis;
+    if (typeof diagnosis === 'string') {
+      formattedDiagnosis = {
+        final: diagnosis ? [diagnosis] : [],
+        provisional: [],
+        differential: []
+      };
+    }
+
+    // Filter medications to only include complete entries
+    const validMedications = (treatment?.medications || []).filter(m => m.name).map(m => ({
+      name: m.name,
+      dosage: m.dosage || 'As prescribed',
+      frequency: m.frequency || 'As needed',
+      duration: m.duration || '5 days',
+      instructions: m.instructions || ''
+    }));
+
     // Update consultation details
     const updateData = {
-      vitals,
+      vitals: vitals || {},
       examination,
-      diagnosis,
-      investigations,
-      treatment,
-      consultationFee,
+      diagnosis: formattedDiagnosis,
+      treatment: {
+        medications: validMedications,
+        procedures: treatment?.procedures || [],
+        advice: treatment?.advice || '',
+        followUp: treatment?.followUp || { required: false }
+      },
+      consultationFee: consultationFee || 500,
       doctorNotes,
       endTime: new Date(),
       status: 'completed'
     };
 
     // Calculate charges
-    const investigationCharges = investigations?.length * 200 || 0; // $200 per investigation
-    const procedureCharges = treatment?.procedures?.length * 500 || 0; // $500 per procedure
-    const medicationCharges = treatment?.medications?.length * 100 || 0; // $100 per medication
+    const investigationCharges = (investigations?.length || 0) * 200;
+    const procedureCharges = (treatment?.procedures?.length || 0) * 500;
+    const medicationCharges = validMedications.length * 100;
     
     updateData.investigationCharges = investigationCharges;
     updateData.procedureCharges = procedureCharges;
@@ -285,8 +322,7 @@ exports.completeConsultation = async (req, res) => {
     console.error('Complete Consultation Error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Failed to complete consultation', 
-      error: error.message 
+      message: `Failed to complete consultation: ${error.message}`
     });
   }
 };
@@ -369,6 +405,13 @@ exports.getPatientOPDHistory = async (req, res) => {
 exports.getOPDStats = async (req, res) => {
   try {
     const { doctorId, department, dateRange = 'today' } = req.query;
+    
+    if (doctorId && !mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid Doctor ID provided' 
+      });
+    }
     
     let dateFilter = {};
     const today = new Date();
@@ -496,6 +539,7 @@ exports.processPayment = async (req, res) => {
 // @access  Private (Doctor/Staff)
 exports.searchPatients = async (req, res) => {
   try {
+    console.log('Search Patients Request - Query:', req.query);
     const { query } = req.query;
     
     if (!query) {

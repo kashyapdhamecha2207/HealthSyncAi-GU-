@@ -64,14 +64,6 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-      // Send login notification email
-      const loginTime = new Date().toLocaleString();
-      const emailTemplate = emailTemplates.login(user, loginTime);
-      await sendEmail({
-        to: user.email,
-        ...emailTemplate
-      });
-
       res.json({
         _id: user._id,
         name: user.name,

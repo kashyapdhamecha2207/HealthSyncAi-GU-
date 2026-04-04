@@ -1,5 +1,6 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const { sendEmail, emailTemplates } = require('../services/emailService');
 
 // Mock third-party service integrations
 const NotificationService = {
@@ -86,10 +87,21 @@ exports.sendNotification = async (req, res) => {
             break;
             
           case 'email':
-            // Mock email - in production, this would come from user profile
-            const email = user.email;
-            const subject = `HealthSync AI+ - ${type || 'Notification'}`;
-            result = await NotificationService.sendEmail(email, subject, message);
+            // Send real email using emailService
+            const emailAddr = user.email;
+            let emailContent;
+            
+            if (type === 'followup') {
+              emailContent = emailTemplates.followUpReminder(user, message);
+            } else {
+              emailContent = emailTemplates.generalNotification(user, message, type);
+            }
+            
+            result = await sendEmail({
+              to: emailAddr,
+              subject: emailContent.subject,
+              html: emailContent.html
+            });
             break;
             
           case 'in-app':

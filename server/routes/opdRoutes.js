@@ -8,7 +8,8 @@ const {
   getOPDVisit,
   getPatientOPDHistory,
   getOPDStats,
-  processPayment
+  processPayment,
+  searchPatients
 } = require('../controllers/opdController');
 const { auth } = require('../middleware/auth');
 

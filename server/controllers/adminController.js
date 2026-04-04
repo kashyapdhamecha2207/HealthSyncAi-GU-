@@ -258,6 +258,7 @@ exports.getSystemAnalytics = async (req, res) => {
 
       default:
         // Overview analytics
+        const totalUsers = await User.countDocuments();
         analytics = {
           systemHealth: {
             uptime: 99.9,

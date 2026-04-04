@@ -18,14 +18,15 @@ const OPDQueueSchema = new mongoose.Schema({
     default: 'new' 
   },
 
-  // Appointment Reference
+  // Appointment & Visit Reference
   appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
+  opdVisitId: { type: mongoose.Schema.Types.ObjectId, ref: 'OPDVisit' },
   scheduledTime: { type: Date },
   
   // Status Tracking
   status: { 
     type: String, 
-    enum: ['waiting', 'called', 'in-consultation', 'completed', 'cancelled'], 
+    enum: ['waiting', 'called', 'in-consultation', 'completed', 'cancelled', 'skipped'], 
     default: 'waiting' 
   },
   checkInTime: { type: Date, default: Date.now },

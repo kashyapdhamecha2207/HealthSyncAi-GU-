@@ -298,6 +298,70 @@ const emailTemplates = {
         </div>
       </div>
     `
+  }),
+  
+  // General message/reminder
+  generalNotification: (user, message, type) => ({
+    subject: `HealthSync AI+ - ${type === 'urgent' ? '🚨 URGENT: ' : ''}New Message`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+        <div style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">💬 New Message</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">HealthSync AI+ Communication</p>
+        </div>
+        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <h2 style="color: #333; margin-bottom: 20px;">Hello, ${user.name}</h2>
+          <p style="color: #666; line-height: 1.6;">Your healthcare provider has sent you a new message:</p>
+          
+          <div style="background: #f8f9fa; padding: 25px; border-left: 4px solid #4e54c8; margin: 20px 0; font-style: italic; color: #444; font-size: 16px;">
+            "${message}"
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:3000/patient/messages" style="background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              Reply in Dashboard
+            </a>
+          </div>
+          
+          <p style="color: #999; font-size: 14px; text-align: center; margin-top: 30px;">
+            This is an automated message. Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `
+  }),
+
+  // Follow-up reminder
+  followUpReminder: (user, message) => ({
+    subject: 'HealthSync AI+ - Follow-up Action Required',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f8f9fa;">
+        <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="margin: 0; font-size: 28px;">📅 Follow-up Reminder</h1>
+          <p style="margin: 10px 0 0 0; opacity: 0.9;">HealthSync AI+ Care Coordination</p>
+        </div>
+        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <h2 style="color: #333; margin-bottom: 20px;">Follow-up Care for ${user.name}</h2>
+          <p style="color: #666; line-height: 1.6;">Dr. ${message.doctorName || 'your doctor'} has requested a follow-up action:</p>
+          
+          <div style="background: #eafff5; padding: 20px; border: 1px solid #c3e6cb; border-radius: 10px; margin: 20px 0;">
+            <p style="color: #155724; font-size: 18px; margin: 0; font-weight: bold;">
+              ${message.text || message}
+            </p>
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="http://localhost:3000/patient/appointments" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              Schedule Appointment
+            </a>
+          </div>
+          
+          <p style="color: #999; font-size: 14px; text-align: center; margin-top: 30px;">
+            This is an automated message. Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `
   })
 };
 

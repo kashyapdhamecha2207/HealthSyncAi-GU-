@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Medication = require('../models/Medication');
 const AdherenceLog = require('../models/AdherenceLog');
 const Notification = require('../models/Notification');
+const Appointment = require('../models/Appointment');
+const OPDVisit = require('../models/OPDVisit');
 const { sendEmail, emailTemplates } = require('../services/emailService');
 
 // @desc    Get linked patients for caregiver
@@ -9,41 +11,49 @@ const { sendEmail, emailTemplates } = require('../services/emailService');
 // @access  Private (Caregiver)
 exports.getLinkedPatients = async (req, res) => {
   try {
-    const caregiverId = req.user.id;
-    
-    // For now, return mock data since we don't have patient linking implemented
-    const mockPatients = [
-      {
-        _id: '1',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        phone: '+1234567890',
-        vitals: {
-          bloodPressure: '120/80',
-          heartRate: '72',
-          bloodSugar: '95'
-        },
-        nextAppointment: '2026-04-05 10:00 AM',
-        adherence: '85%',
-        medications: ['Metformin', 'Lisinopril']
-      },
-      {
-        _id: '2',
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        phone: '+1234567891',
-        vitals: {
-          bloodPressure: '118/75',
-          heartRate: '68',
-          bloodSugar: '88'
-        },
-        nextAppointment: '2026-04-06 2:00 PM',
-        adherence: '92%',
-        medications: ['Aspirin', 'Vitamin D']
-      }
-    ];
-    
-    res.json(mockPatients);
+    // Get all patients from the database
+    const patients = await User.find({ role: 'patient' })
+      .select('name email phone age gender createdAt')
+      .sort({ name: 1 });
+
+    // For each patient, get their latest vitals & appointment info
+    const enrichedPatients = await Promise.all(patients.map(async (patient) => {
+      const p = patient.toObject();
+
+      // Get latest OPD visit for vitals
+      const latestVisit = await OPDVisit.findOne({ patientId: patient._id })
+        .sort({ createdAt: -1 })
+        .select('vitals status department createdAt');
+
+      // Get next upcoming appointment
+      const nextAppointment = await Appointment.findOne({
+        patientId: patient._id,
+        date: { $gte: new Date() },
+        status: { $nin: ['cancelled', 'completed'] }
+      }).sort({ date: 1 }).select('date time department');
+
+      // Get total visits count
+      const totalVisits = await OPDVisit.countDocuments({ patientId: patient._id });
+
+      // Get medications from latest visit
+      const visitWithMeds = await OPDVisit.findOne({
+        patientId: patient._id,
+        'treatment.medications': { $exists: true, $ne: [] }
+      }).sort({ createdAt: -1 }).select('treatment.medications');
+
+      p.vitals = latestVisit?.vitals || {};
+      p.nextAppointment = nextAppointment
+        ? `${new Date(nextAppointment.date).toLocaleDateString()} ${nextAppointment.time || ''}`
+        : null;
+      p.totalVisits = totalVisits;
+      p.lastVisit = latestVisit?.createdAt || null;
+      p.department = latestVisit?.department || 'N/A';
+      p.medications = (visitWithMeds?.treatment?.medications || []).map(m => m.name).filter(Boolean);
+
+      return p;
+    }));
+
+    res.json(enrichedPatients);
     
   } catch (error) {
     console.error('Get Linked Patients Error:', error);
@@ -60,37 +70,48 @@ exports.getLinkedPatients = async (req, res) => {
 // @access  Private (Caregiver)
 exports.getCaregiverNotifications = async (req, res) => {
   try {
-    const caregiverId = req.user.id;
-    
-    // For now, return mock notifications
-    const mockNotifications = [
-      {
-        _id: '1',
-        type: 'alert',
-        message: 'John Doe missed morning medication',
-        patientName: 'John Doe',
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        priority: 'high'
-      },
-      {
-        _id: '2',
-        type: 'reminder',
-        message: 'Jane Smith has appointment tomorrow',
-        patientName: 'Jane Smith',
-        createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-        priority: 'medium'
-      },
-      {
-        _id: '3',
-        type: 'alert',
-        message: 'John Doe blood pressure reading is elevated',
-        patientName: 'John Doe',
-        createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-        priority: 'high'
-      }
-    ];
-    
-    res.json(mockNotifications);
+    // Get real notifications from database
+    const notifications = await Notification.find({})
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .populate('userId', 'name');
+
+    const formatted = notifications.map(n => ({
+      _id: n._id,
+      type: n.type || 'info',
+      message: n.message,
+      patientName: n.userId?.name || 'Unknown',
+      createdAt: n.createdAt,
+      priority: n.priority || 'medium',
+      read: n.read || false
+    }));
+
+    // If no notifications in DB, get recent OPD activity as notifications
+    if (formatted.length === 0) {
+      const recentVisits = await OPDVisit.find({})
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate('patientId', 'name')
+        .populate('doctorId', 'name');
+
+      const visitNotifications = recentVisits.map(v => ({
+        _id: v._id,
+        type: v.isEmergency ? 'alert' : v.status === 'completed' ? 'update' : 'reminder',
+        message: v.isEmergency
+          ? `Emergency visit: ${v.patientId?.name || 'Patient'} — ${v.department}`
+          : v.status === 'completed'
+            ? `Consultation completed: ${v.patientId?.name || 'Patient'} — ${v.department}`
+            : `Pending visit: ${v.patientId?.name || 'Patient'} — ${v.chiefComplaint || v.department}`,
+        patientName: v.patientId?.name || 'Unknown',
+        createdAt: v.createdAt,
+        priority: v.isEmergency ? 'high' : 'medium',
+        read: false
+      }));
+
+      return res.json(visitNotifications);
+    }
+
+    res.json(formatted);
     
   } catch (error) {
     console.error('Get Caregiver Notifications Error:', error);
@@ -110,40 +131,52 @@ exports.sendReminder = async (req, res) => {
     const { patientId, message, type } = req.body;
     const caregiverId = req.user.id;
     
+    const patient = await User.findById(patientId);
+    if (!patient) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
     // Create notification for patient
     await Notification.create({
       userId: patientId,
       message: `Caregiver Reminder: ${message}`,
       type: 'reminder',
       priority: 'medium',
-      channels: ['in-app', 'sms'],
+      channels: ['in-app', 'email'],
       relatedId: caregiverId,
       relatedType: 'caregiver'
     });
 
-    // Send email reminder to patient
-    const patient = await User.findById(patientId);
-    if (patient) {
+    // Send email based on type
+    if (type === 'medication') {
+      // Get real medications from latest visit
+      const visitWithMeds = await OPDVisit.findOne({
+        patientId,
+        'treatment.medications': { $exists: true, $ne: [] }
+      }).sort({ createdAt: -1 }).select('treatment.medications');
+
+      const meds = visitWithMeds?.treatment?.medications || [];
       const medicationData = {
-        name: 'Medication Reminder',
-        dosage: 'As prescribed',
-        frequency: 'As scheduled'
+        name: meds.length > 0 ? meds.map(m => m.name).join(', ') : 'Your prescribed medications',
+        dosage: meds.length > 0 ? meds[0].dosage : 'As prescribed',
+        frequency: meds.length > 0 ? meds[0].frequency : 'As scheduled'
       };
       
       const emailTemplate = emailTemplates.medicationReminder(medicationData, patient);
-      await sendEmail({
-        to: patient.email,
-        ...emailTemplate
-      });
+      await sendEmail({ to: patient.email, ...emailTemplate });
+    } else {
+      // General reminder with custom message
+      const emailTemplate = emailTemplates.generalNotification(patient, message, 'normal');
+      await sendEmail({ to: patient.email, ...emailTemplate });
     }
     
     res.json({
       success: true,
-      message: 'Reminder sent successfully'
+      message: `Reminder sent to ${patient.name} (${patient.email})`
     });
     
   } catch (error) {
-    console.error('Send Reminder Error:', error);
+    console.error('Send Reminder Error Detail:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to send reminder', 
@@ -159,30 +192,52 @@ exports.getPatientStatus = async (req, res) => {
   try {
     const { patientId } = req.params;
     
-    // For now, return mock status
-    const mockStatus = {
+    const patient = await User.findById(patientId).select('name email phone age gender');
+    if (!patient) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    // Get latest vitals from OPD visit
+    const latestVisit = await OPDVisit.findOne({ patientId })
+      .sort({ createdAt: -1 })
+      .select('vitals diagnosis treatment status department createdAt');
+
+    // Get total visits
+    const totalVisits = await OPDVisit.countDocuments({ patientId });
+    const completedVisits = await OPDVisit.countDocuments({ patientId, status: 'completed' });
+    const emergencyVisits = await OPDVisit.countDocuments({ patientId, isEmergency: true });
+
+    // Get upcoming appointments
+    const upcomingAppointments = await Appointment.find({
       patientId,
-      status: 'Good',
-      lastMedicationTaken: '2 hours ago',
-      nextMedicationDue: '6 hours',
-      vitals: {
-        bloodPressure: '120/80',
-        heartRate: '72',
-        temperature: '98.6°F',
-        bloodSugar: '95'
+      date: { $gte: new Date() },
+      status: { $nin: ['cancelled'] }
+    }).sort({ date: 1 }).limit(3).select('date time department status');
+
+    // Get recent medications
+    const visitWithMeds = await OPDVisit.findOne({
+      patientId,
+      'treatment.medications': { $exists: true, $ne: [] }
+    }).sort({ createdAt: -1 }).select('treatment');
+
+    const status = {
+      patient: patient.toObject(),
+      status: emergencyVisits > 0 ? 'Needs Attention' : completedVisits > 0 ? 'Stable' : 'New Patient',
+      vitals: latestVisit?.vitals || {},
+      lastVisitDate: latestVisit?.createdAt || null,
+      lastDepartment: latestVisit?.department || null,
+      lastDiagnosis: latestVisit?.diagnosis || null,
+      stats: {
+        totalVisits,
+        completedVisits,
+        emergencyVisits
       },
-      adherence: {
-        today: '85%',
-        weekly: '88%',
-        monthly: '90%'
-      },
-      alerts: [
-        'Blood pressure slightly elevated',
-        'Missed evening medication yesterday'
-      ]
+      upcomingAppointments,
+      currentMedications: visitWithMeds?.treatment?.medications || [],
+      advice: visitWithMeds?.treatment?.advice || ''
     };
     
-    res.json(mockStatus);
+    res.json(status);
     
   } catch (error) {
     console.error('Get Patient Status Error:', error);
