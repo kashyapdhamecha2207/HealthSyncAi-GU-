@@ -49,13 +49,13 @@ export default function DashboardLayout({ children }) {
     <div className="min-h-screen flex bg-slate-50">
       {/* Sidebar Navigation */}
       <aside className="w-64 glass-dark text-white border-r border-white/10 flex flex-col fixed h-full z-40 overflow-y-auto">
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto">
           <div className="flex items-center gap-2 mb-8">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-white font-bold text-xl">+</div>
             <span className="font-bold text-lg">HealthSync Role: <span className="capitalize text-teal-300">{user.role}</span></span>
           </div>
 
-          <nav className="space-y-2">
+          <nav className="space-y-2 pb-20">
             <a href={`/${user.role}`} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
               pathname === `/${user.role}` 
                 ? 'bg-gradient-to-r from-teal-500 to-emerald-500 shadow-lg border-2 border-teal-400' 
