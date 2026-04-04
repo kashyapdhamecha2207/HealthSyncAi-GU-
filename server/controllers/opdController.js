@@ -5,6 +5,7 @@ const Appointment = require('../models/Appointment');
 const User = require('../models/User');
 const Medication = require('../models/Medication');
 const { calculateRiskScore } = require('../utils/aiLogic');
+const { sendEmail, emailTemplates } = require('../services/emailService');
 
 // @desc    Register patient for OPD visit
 // @route   POST /api/opd/register
@@ -231,6 +232,46 @@ exports.updateQueueStatus = async (req, res) => {
   }
 };
 
+// @desc    Notify patient they have been called
+// @route   POST /api/opd/queue/:queueId/notify
+// @access  Private
+exports.notifyPatientCall = async (req, res) => {
+  try {
+    const { queueId } = req.params;
+    
+    const queueEntry = await OPDQueue.findById(queueId).populate('patientId', 'name email');
+    if (!queueEntry) {
+      return res.status(404).json({ success: false, message: 'Queue entry not found' });
+    }
+
+    // Attempt to parse patient details robustly
+    const patient = queueEntry.patientId;
+    if (!patient || !patient.email) {
+      // Patient might not have email or it's a dummy patient
+      return res.status(200).json({ success: true, message: 'Dummy or email-less patient called' });
+    }
+
+    // Set queue status to called so it updates backend tracking
+    queueEntry.status = 'called';
+    await queueEntry.save();
+
+    // Trigger email via configured emailService using general token template
+    const message = `Please proceed to the consultation room immediately. Your queue number ${queueEntry.queueNumber} has been called for the ${queueEntry.department} department.`;
+    const emailTemplate = emailTemplates.generalNotification(patient, message, 'urgent');
+
+    await sendEmail({
+      to: patient.email,
+      ...emailTemplate
+    });
+
+    res.json({ success: true, message: 'Patient notified successfully' });
+
+  } catch (error) {
+    console.error('Notify Patient Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to notify patient' });
+  }
+};
+
 // @desc    Complete OPD consultation
 // @route   POST /api/opd/consultation/:visitId/complete
 // @access  Private (Doctor)
@@ -312,9 +353,25 @@ exports.completeConsultation = async (req, res) => {
       }
     );
 
+    // Create individual Medication records for tracking
+    if (validMedications && validMedications.length > 0) {
+      await Promise.all(validMedications.map(med => 
+        Medication.create({
+          patientId: opdVisit.patientId,
+          prescribedBy: opdVisit.doctorId,
+          name: med.name,
+          dosage: med.dosage,
+          frequency: med.frequency,
+          startDate: new Date(),
+          // Default to 7 days if duration not parsed, or use a default
+          endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) 
+        })
+      ));
+    }
+
     res.json({
       success: true,
-      message: 'Consultation completed successfully',
+      message: 'Consultation completed and medications prescribed successfully',
       data: opdVisit
     });
 

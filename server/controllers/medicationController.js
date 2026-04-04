@@ -20,46 +20,73 @@ exports.getMedications = async (req, res) => {
 // @route   POST /api/medications
 // @access  Private (Doctor/Patient)
 exports.addMedication = async (req, res) => {
+  console.log('💊 Adding Medication:', req.body);
+  console.log('👤 User from token:', req.user);
+  
   try {
-    const { name, dosage, frequency, scheduleTimes, startDate, endDate, patientId } = req.body;
+    const { name, dosage, frequency, scheduleTimes, reminderTimes, startDate, endDate, patientId } = req.body;
     
     // Determine patient ID based on role
     const targetPatientId = req.user.role === 'patient' ? req.user.id : patientId;
 
-    const medication = await Medication.create({
+    if (!name || !dosage || !frequency) {
+      return res.status(400).json({ message: 'Missing required fields: name, dosage, or frequency' });
+    }
+
+    // Defensive check for dates
+    const finalStartDate = startDate && startDate !== '' ? new Date(startDate) : new Date();
+    const finalEndDate = endDate && endDate !== '' ? new Date(endDate) : null;
+
+    if (isNaN(finalStartDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid start date format' });
+    }
+
+    const medicationData = {
       patientId: targetPatientId,
       prescribedBy: req.user.role === 'doctor' ? req.user.id : null,
       name,
       dosage,
       frequency,
-      scheduleTimes,
-      startDate,
-      endDate
-    });
+      scheduleTimes: scheduleTimes || reminderTimes || [],
+      startDate: finalStartDate,
+      endDate: finalEndDate
+    };
+
+    console.log('📝 Saving Medication to DB:', medicationData);
+    const medication = await Medication.create(medicationData);
 
     // Send prescription email notification
-    const [patient, doctor] = await Promise.all([
-      User.findById(targetPatientId),
-      req.user.role === 'doctor' ? User.findById(req.user.id) : null
-    ]);
+    try {
+      const targetUser = await User.findById(targetPatientId);
+      const doctorUser = req.user.role === 'doctor' ? await User.findById(req.user.id) : null;
 
-    if (patient) {
-      const prescriptionData = {
-        date: medication.createdAt,
-        medications: [medication.name],
-        instructions: `Take ${dosage} ${frequency} as prescribed`
-      };
-      
-      const emailTemplate = emailTemplates.prescription(prescriptionData, patient, doctor);
-      await sendEmail({
-        to: patient.email,
-        ...emailTemplate
-      });
+      if (targetUser && targetUser.email) {
+        const prescriptionData = {
+          date: medication.createdAt,
+          medications: [medication.name],
+          instructions: `Take ${dosage} ${frequency} as prescribed`
+        };
+        
+        const emailTemplate = emailTemplates.prescription(prescriptionData, targetUser, doctorUser || { name: 'System' });
+        await sendEmail({
+          to: targetUser.email,
+          ...emailTemplate
+        });
+        console.log('📧 Prescription email sent successfully');
+      }
+    } catch (emailError) {
+      console.error('⚠️ Email Notification Error:', emailError.message);
+      // Non-blocking error
     }
 
     res.status(201).json(medication);
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('❌ Add Medication Error:', error);
+    res.status(error.name === 'ValidationError' ? 400 : 500).json({ 
+      message: 'Failed to create medication', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
@@ -148,6 +175,22 @@ exports.getMedicationAdherence = async (req, res) => {
       totalDoses: totalLogs,
       takenDoses: takenLogs
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+// @desc    Delete medication
+// @route   DELETE /api/medications/:id
+// @access  Private
+exports.deleteMedication = async (req, res) => {
+  try {
+    const medication = await Medication.findOne({ _id: req.params.id, patientId: req.user.id });
+    if (!medication) {
+      return res.status(404).json({ message: 'Medication not found or not authorized' });
+    }
+
+    await Medication.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Medication deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

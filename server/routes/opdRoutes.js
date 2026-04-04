@@ -4,6 +4,7 @@ const {
   registerOPDPatient,
   getOPDQueue,
   updateQueueStatus,
+  notifyPatientCall,
   completeConsultation,
   getOPDVisit,
   getPatientOPDHistory,
@@ -21,6 +22,7 @@ router.post('/register', registerOPDPatient);
 router.get('/patients/search', searchPatients);
 router.get('/queue/:doctorId', getOPDQueue);
 router.patch('/queue/:queueId/status', updateQueueStatus);
+router.post('/queue/:queueId/notify', notifyPatientCall);
 
 // Consultation Management
 router.post('/consultation/:visitId/complete', completeConsultation);

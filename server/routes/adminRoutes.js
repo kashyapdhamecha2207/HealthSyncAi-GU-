@@ -4,6 +4,7 @@ const {
   getAdminDashboardStats,
   getSystemAnalytics,
   getUsers,
+  updateUser,
   updateUserStatus,
   getSystemLogs
 } = require('../controllers/adminController');
@@ -21,6 +22,7 @@ router.get('/analytics', getSystemAnalytics);
 
 // User Management
 router.get('/users', getUsers);
+router.patch('/users/:id', updateUser);
 router.patch('/users/:id/status', updateUserStatus);
 
 // System Logs

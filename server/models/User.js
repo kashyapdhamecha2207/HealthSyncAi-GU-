@@ -16,9 +16,10 @@ const UserSchema = new mongoose.Schema({
   }, // For caregivers to link to patients
   department: { type: String },
   speciality: { type: String },
+  experience: { type: String },
   status: { 
     type: String, 
-    enum: ['active', 'inactive'], 
+    enum: ['active', 'inactive', 'suspended'], 
     default: 'active' 
   },
   phone: { type: String },

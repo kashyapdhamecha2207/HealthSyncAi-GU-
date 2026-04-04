@@ -77,36 +77,50 @@ export default function Medications() {
 
   const handleRequestRefill = async (id) => {
     try {
-      const medication = medications.find(med => med.id === id);
+      const medication = medications.find(med => (med._id || med.id) === id);
       if (!medication) return;
 
-      // Create refill request
-      const refillRequest = {
-        id: Date.now().toString(),
-        medicationId: medication.id,
+      let doctorId = medication.prescribedBy;
+
+      // Routing: Ensure requests strictly go to Dr. Deep Goyani
+      if (!doctorId) {
+        try {
+          const docsRes = await api.get('/doctor/all');
+          const doctorsArray = docsRes.data?.data || [];
+          if (doctorsArray.length > 0) {
+            const drDeep = doctorsArray.find(d => 
+              d.name?.toLowerCase().includes('deep') || 
+              d.email?.toLowerCase().includes('deepgoyani')
+            );
+            // Default to Deep Goyani if found, otherwise emergency fallback
+            doctorId = drDeep ? drDeep._id : doctorsArray[0]._id;
+          }
+        } catch (e) {
+          console.error('Failed fetching doctors for routing.');
+        }
+      }
+
+      if (!doctorId) {
+        alert('Cannot send refill request: No active doctor found on the platform.');
+        return;
+      }
+
+      await api.post('/refills', {
+        doctorId,
         medicationName: medication.name,
-        patientName: 'John Doe', // In real app, get from user context
         dosage: medication.dosage,
         frequency: medication.frequency,
-        requestedDate: new Date().toISOString().split('T')[0],
-        lastRefillDate: medication.lastRefillDate,
-        notes: `Patient requested refill for ${medication.name}`,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
+        notes: `Patient requested refill for ${medication.name}`
+      });
 
-      // Store refill request in localStorage
-      const storedRequests = JSON.parse(localStorage.getItem('refillRequests') || '[]');
-      storedRequests.push(refillRequest);
-      localStorage.setItem('refillRequests', JSON.stringify(storedRequests));
-
-      // Update medication refills count
+      // Update medication refills count locally
       setMedications(medications.map(med => 
-        med.id === id ? { ...med, refills: med.refills + 1 } : med
+        (med._id || med.id) === id ? { ...med, refills: (med.refills || 0) + 1 } : med
       ));
       
       alert('Refill request sent to doctor successfully!');
     } catch (err) {
+      console.error('Failed to request refill:', err);
       alert('Failed to request refill');
     }
   };
@@ -286,13 +300,13 @@ export default function Medications() {
                     
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleRequestRefill(medication.id)}
+                        onClick={() => handleRequestRefill(medication._id || medication.id)}
                         className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                       >
                         Request Refill
                       </button>
                       <button
-                        onClick={() => handleDeleteMedication(medication.id)}
+                        onClick={() => handleDeleteMedication(medication._id || medication.id)}
                         className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
                       >
                         <Trash2 size={16} />

@@ -107,3 +107,35 @@ exports.getLiveQueue = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+// @desc   Export appointments to CSV
+// @route  GET /api/appointments/export
+// @access Private
+exports.exportAppointments = async (req, res) => {
+  try {
+    let filter = {};
+    if (req.user.role === 'patient') filter.patientId = req.user.id;
+    if (req.user.role === 'doctor') filter.doctorId = req.user.id;
+
+    const appointments = await Appointment.find(filter)
+      .populate('patientId', 'name email')
+      .populate('doctorId', 'name email')
+      .sort({ date: 1, time: 1 });
+
+    const csvHeaders = 'Date,Time,Doctor,Patient,Reason,Risk Level,Status\n';
+    const csvRows = appointments.map(a => {
+      const date = new Date(a.date).toLocaleDateString();
+      const time = a.time || 'N/A';
+      const doctor = a.doctorId?.name || 'N/A';
+      const patient = a.patientId?.name || 'N/A';
+      const reason = (a.reason || '').replace(/,/g, ';').replace(/\n/g, ' ');
+      const risk = a.riskLevel || 'LOW';
+      const status = a.status || 'scheduled';
+      return `${date},${time},${doctor},${patient},${reason},${risk},${status}`;
+    }).join('\n');
+
+    res.header('Content-Type', 'text/csv');
+    res.send(csvHeaders + csvRows);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

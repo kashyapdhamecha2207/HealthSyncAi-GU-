@@ -12,7 +12,16 @@ const AppointmentSchema = new mongoose.Schema({
   },
   estimatedDuration: { type: Number, default: 30 }, // in minutes
   riskScore: { type: Number, default: 0 }, // 0 to 1
-  riskLevel: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'LOW' }
+  riskLevel: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], default: 'LOW' },
+  isPriority: { type: Boolean, default: false },
+  emergencyLevel: { 
+    type: String, 
+    enum: ['low', 'medium', 'high', 'critical'], 
+    default: 'low' 
+  },
+  reason: { type: String, default: '' },
+  experience: { type: String, default: '' },
+  notes: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Appointment', AppointmentSchema);

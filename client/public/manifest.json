@@ -1,15 +1,22 @@
 {
-  "name": "Medical Appointment App",
-  "short_name": "MedApp",
+  "name": "HealthSync AI+",
+  "short_name": "HealthSync",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#0a74da",
+  "background_color": "#1e293b",
+  "theme_color": "#0f766e",
   "icons": [
     {
-      "src": "/file.svg",
+      "src": "/logo192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

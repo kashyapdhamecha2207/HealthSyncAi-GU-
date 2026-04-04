@@ -457,3 +457,37 @@ exports.getSystemLogs = async (req, res) => {
     });
   }
 };
+// @desc    Update user details
+// @route   PATCH /api/admin/users/:id
+// @access  Private (Admin)
+exports.updateUser = async (req, res) => {
+  try {
+    const { name, speciality, experience, department } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Update allowed fields
+    if (name) user.name = name;
+    if (speciality) user.speciality = speciality;
+    if (experience) user.experience = experience;
+    if (department) user.department = department;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update User Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update user', 
+      error: error.message 
+    });
+  }
+};

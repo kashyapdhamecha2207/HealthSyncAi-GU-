@@ -4,7 +4,8 @@ const {
   detectEmergency,
   getPriorityQueue,
   createPrioritySlot,
-  getEmergencyStats
+  getEmergencyStats,
+  markAsSeen
 } = require('../controllers/emergencyController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -12,9 +13,10 @@ const { auth, authorize } = require('../middleware/auth');
 router.use(auth);
 
 // Emergency detection and routing
-router.post('/detect', authorize('system'), detectEmergency);
-router.get('/priority-queue', authorize('doctor', 'admin'), getPriorityQueue);
-router.post('/priority-slot', authorize('doctor', 'admin'), createPrioritySlot);
-router.get('/stats', authorize('admin'), getEmergencyStats);
+router.post('/detect', detectEmergency);
+router.get('/priority-queue', getPriorityQueue);
+router.post('/priority-slot', createPrioritySlot);
+router.get('/stats', getEmergencyStats);
+router.patch('/queue/:id/seen', markAsSeen);
 
 module.exports = router;

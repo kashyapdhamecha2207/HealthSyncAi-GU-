@@ -27,6 +27,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const emergencyRoutes = require('./routes/emergencyRoutes');
 const caregiverRoutes = require('./routes/caregiverRoutes');
 const refillRoutes = require('./routes/refillRoutes');
+const medicalRecordRoutes = require('./routes/medicalRecordRoutes');
 
 // Mount routes
 app.use('/api/doctors', doctorRoutes);
@@ -41,6 +42,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/emergency', emergencyRoutes);
 app.use('/api/caregiver', caregiverRoutes);
 app.use('/api/refills', refillRoutes);
+app.use('/api/medical-records', medicalRecordRoutes);
 
 // Base route
 app.get('/', (req, res) => {

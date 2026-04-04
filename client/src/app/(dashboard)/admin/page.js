@@ -5,7 +5,7 @@ import {
   Users, DollarSign, Calendar, Activity, TrendingUp, 
   AlertTriangle, Clock, Settings, FileText, Search,
   Filter, Download, RefreshCw, Eye, Edit,
-  Ban, CheckCircle
+  Ban, CheckCircle, XCircle
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -23,6 +23,11 @@ export default function AdminDashboard() {
   });
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // User Management extra modals
+  const [editUser, setEditUser] = useState(null);
+  const [viewUser, setViewUser] = useState(null);
+  const [userEditFormData, setUserEditFormData] = useState({ name: '', role: '' });
   const [dateRange, setDateRange] = useState('month');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -98,6 +103,23 @@ export default function AdminDashboard() {
       fetchDashboardData();
     } catch (err) {
       alert('Failed to update doctor');
+    }
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    try {
+      // Update name
+      await api.patch(`/admin/users/${editUser._id}`, { name: userEditFormData.name });
+      // Update role via status endpoint since it accepts it
+      if (userEditFormData.role && userEditFormData.role !== editUser.role) {
+        await api.patch(`/admin/users/${editUser._id}/status`, { role: userEditFormData.role });
+      }
+      alert('User updated successfully!');
+      setEditUser(null);
+      fetchDashboardData();
+    } catch (err) {
+      alert('Failed to update user');
     }
   };
 
@@ -449,6 +471,42 @@ export default function AdminDashboard() {
               No doctors found matching your search.
             </div>
           )}
+
+          {/* Edit Doctor Modal */}
+          {editDoctor && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-lg overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h2 className="text-xl font-bold text-slate-800">Edit Doctor Profile</h2>
+                  <button onClick={() => setEditDoctor(null)} className="text-slate-400 hover:text-slate-600">
+                    <XCircle size={24} />
+                  </button>
+                </div>
+                <form onSubmit={handleUpdateDoctor} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Name</label>
+                    <input type="text" value={editFormData.name} onChange={(e) => setEditFormData({...editFormData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Department</label>
+                    <input type="text" value={editFormData.department} onChange={(e) => setEditFormData({...editFormData, department: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Speciality</label>
+                    <input type="text" value={editFormData.speciality} onChange={(e) => setEditFormData({...editFormData, speciality: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Experience</label>
+                    <input type="text" value={editFormData.experience} onChange={(e) => setEditFormData({...editFormData, experience: e.target.value})} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-teal-500 outline-none" required />
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button type="submit" className="flex-1 py-3 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition">Save Changes</button>
+                    <button type="button" onClick={() => setEditDoctor(null)} className="py-3 px-6 bg-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-300 transition">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {activeTab === 'users' && (
@@ -523,10 +581,10 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-2">
-                          <button className="text-blue-600 hover:text-blue-900">
+                          <button onClick={() => setViewUser(user)} className="text-blue-600 hover:text-blue-900">
                             <Eye size={16} />
                           </button>
-                          <button className="text-amber-600 hover:text-amber-900">
+                          <button onClick={() => { setEditUser(user); setUserEditFormData({ name: user.name || '', role: user.role || 'patient' }); }} className="text-amber-600 hover:text-amber-900">
                             <Edit size={16} />
                           </button>
                           <button 
@@ -543,6 +601,77 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+
+          {/* View User Modal */}
+          {viewUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h2 className="text-xl font-bold text-slate-800">User Details</h2>
+                  <button onClick={() => setViewUser(null)} className="text-slate-400 hover:text-slate-600">
+                    <XCircle size={24} />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl font-bold">
+                      {viewUser.name?.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800">{viewUser.name}</h3>
+                      <p className="text-sm text-slate-500">{viewUser.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm mt-4">
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase">Role</span>
+                      <div className="font-semibold text-slate-800 capitalize">{viewUser.role}</div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase">Status</span>
+                      <div className="font-semibold text-slate-800 capitalize">{viewUser.status || 'Active'}</div>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-400 uppercase">Joined</span>
+                      <div className="font-semibold text-slate-800">{new Date(viewUser.createdAt).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {editUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h2 className="text-xl font-bold text-slate-800">Edit User</h2>
+                  <button onClick={() => setEditUser(null)} className="text-slate-400 hover:text-slate-600">
+                    <XCircle size={24} />
+                  </button>
+                </div>
+                <form onSubmit={handleUpdateUser} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Name</label>
+                    <input type="text" value={userEditFormData.name} onChange={(e) => setUserEditFormData({...userEditFormData, name: e.target.value})} className="w-full px-4 py-2 border rounded-lg outline-none focus:border-teal-500" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Role</label>
+                    <select value={userEditFormData.role} onChange={(e) => setUserEditFormData({...userEditFormData, role: e.target.value})} className="w-full px-4 py-2 border rounded-lg outline-none focus:border-teal-500">
+                      <option value="patient">Patient</option>
+                      <option value="doctor">Doctor</option>
+                      <option value="admin">Admin</option>
+                      <option value="caregiver">Caregiver</option>
+                    </select>
+                  </div>
+                  <div className="pt-4 flex gap-3">
+                    <button type="submit" className="flex-1 py-2 bg-teal-600 text-white font-bold rounded-lg hover:bg-teal-700 transition">Save</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -600,8 +729,15 @@ export default function AdminDashboard() {
                         </div>
                       )}
                       {log.details && (
-                        <div className="mt-2 p-2 bg-slate-50 rounded text-xs text-slate-700">
-                          <pre className="whitespace-pre-wrap">{JSON.stringify(log.details, null, 2)}</pre>
+                        <div className="mt-2 p-3 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700">
+                          <div className="space-y-1">
+                            {Object.entries(log.details).map(([key, value]) => (
+                              <div key={key} className="flex flex-col">
+                                <span className="font-semibold text-slate-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                                <span className="text-slate-900 break-words">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
